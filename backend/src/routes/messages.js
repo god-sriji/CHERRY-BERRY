@@ -1,0 +1,317 @@
+import express from 'express';
+import { Op } from 'sequelize';
+import { Message, User, Chat } from '../models/index.js';
+import { authenticateToken } from '../middleware/index.js';
+
+const router = express.Router();
+
+// POST /api/messages - Send a message
+router.post('/', authenticateToken, async (req, res) => {
+  try {
+    const { chat_id, message_text } = req.body;
+    const sender_id = req.user.user_id;
+
+    if (!chat_id || !message_text) {
+      return res.status(400).json({
+        success: false,
+        message: 'Chat ID and message text are required'
+      });
+    }
+
+    // Verify user is part of this chat
+    const chat = await Chat.findOne({
+      where: {
+        chat_id,
+        [Op.or]: [
+          { user1_id: sender_id },
+          { user2_id: sender_id }
+        ]
+      }
+    });
+
+    if (!chat) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not part of this chat'
+      });
+    }
+
+    const newMessage = await Message.create({
+      chat_id,
+      sender_id,
+      message_text
+    });
+
+    // Update chat's last_message_at
+    await Chat.update(
+      { last_message_at: new Date() },
+      { where: { chat_id } }
+    );
+
+    // Fetch the message with sender info
+    const messageWithSender = await Message.findOne({
+      where: { message_id: newMessage.message_id },
+      include: [{
+        model: User,
+        as: 'sender',
+        attributes: ['user_id', 'username', 'profile_pic']
+      }]
+    });
+
+    // Emit socket event for real-time messaging
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`chat_${chat_id}`).emit('new_message', messageWithSender);
+    }
+
+    res.status(201).json({
+      success: true,
+      data: messageWithSender,
+      message: 'Message sent successfully'
+    });
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error sending message',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// GET /api/messages/:chatId - Get messages for a chat
+router.get('/:chatId', authenticateToken, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const userId = req.user.user_id;
+
+    // Verify user is part of this chat
+    const chat = await Chat.findOne({
+      where: {
+        chat_id: chatId,
+        [Op.or]: [
+          { user1_id: userId },
+          { user2_id: userId }
+        ]
+      }
+    });
+
+    if (!chat) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not part of this chat'
+      });
+    }
+
+    const messages = await Message.findAll({
+      where: { chat_id: chatId },
+      include: [{
+        model: User,
+        as: 'sender',
+        attributes: ['user_id', 'username', 'profile_pic']
+      }],
+      order: [['sent_at', 'ASC']]
+    });
+
+    // Mark ALL unread messages from other user as read (not just the latest)
+    const updateResult = await Message.update(
+      { is_read: true },
+      {
+        where: {
+          chat_id: chatId,
+          sender_id: { [Op.ne]: userId }, // Not sent by current user
+          is_read: false
+        }
+      }
+    );
+
+    // Emit socket event if any messages were marked as read
+    if (updateResult[0] > 0) {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`chat_${chatId}`).emit('messages_read', { chatId, userId });
+      }
+    }
+
+    // Refetch messages to get updated is_read status
+    const updatedMessages = await Message.findAll({
+      where: { chat_id: chatId },
+      include: [{
+        model: User,
+        as: 'sender',
+        attributes: ['user_id', 'username', 'profile_pic']
+      }],
+      order: [['sent_at', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: updatedMessages,
+      message: 'Messages retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching messages',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// PUT /api/messages/:chatId/mark-read - Mark all messages in a chat as read
+router.put('/:chatId/mark-read', authenticateToken, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const userId = req.user.user_id;
+
+    // Verify user is part of this chat
+    const chat = await Chat.findOne({
+      where: {
+        chat_id: chatId,
+        [Op.or]: [
+          { user1_id: userId },
+          { user2_id: userId }
+        ]
+      }
+    });
+
+    if (!chat) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not part of this chat'
+      });
+    }
+
+    // Mark all messages from other user as read
+    await Message.update(
+      { is_read: true },
+      {
+        where: {
+          chat_id: chatId,
+          sender_id: { [Op.ne]: userId },
+          is_read: false
+        }
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'Messages marked as read'
+    });
+  } catch (error) {
+    console.error('Error marking messages as read:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error marking messages as read',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// PUT /api/messages/:messageId - Edit a message
+router.put('/:messageId', authenticateToken, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { message_text } = req.body;
+    const userId = req.user.user_id;
+
+    if (!message_text || !message_text.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message text is required'
+      });
+    }
+
+    // Find the message
+    const message = await Message.findOne({
+      where: { message_id: messageId }
+    });
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found'
+      });
+    }
+
+    // Verify user is the sender
+    if (message.sender_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only edit your own messages'
+      });
+    }
+
+    // Update the message
+    await message.update({ message_text: message_text.trim() });
+
+    // Fetch updated message with sender info
+    const updatedMessage = await Message.findOne({
+      where: { message_id: messageId },
+      include: [{
+        model: User,
+        as: 'sender',
+        attributes: ['user_id', 'username', 'profile_pic']
+      }]
+    });
+
+    res.json({
+      success: true,
+      data: updatedMessage,
+      message: 'Message updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating message:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating message',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// DELETE /api/messages/:messageId - Delete a message
+router.delete('/:messageId', authenticateToken, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user.user_id;
+
+    // Find the message
+    const message = await Message.findOne({
+      where: { message_id: messageId }
+    });
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found'
+      });
+    }
+
+    // Verify user is the sender
+    if (message.sender_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only delete your own messages'
+      });
+    }
+
+    // Delete the message
+    await message.destroy();
+
+    res.json({
+      success: true,
+      message: 'Message deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting message:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting message',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+export default router;

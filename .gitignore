@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs
+dist/
+build/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads (but keep folder structure with .gitkeep)
+backend/uploads/posts/*
+!backend/uploads/posts/.gitkeep
+frontend/public/defaultpfp/*
+!frontend/public/defaultpfp/.gitkeep
+
+# Database
+*.sql
+*.db
+*.sqlite
+
+# Temporary files
+*.tmp
+*.temp
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
