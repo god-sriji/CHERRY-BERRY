@@ -1,0 +1,125 @@
+🎯 Modules Implemented
+1. Authentication & Authorization
+✅ Google OAuth 2.0 Sign-In/Sign-Up
+✅ JWT-based authentication
+✅ Protected routes
+✅ Session management
+✅ Email verification (JWT token in URL)
+2. User Management
+✅ User profiles (bio, profile picture, cover picture)
+✅ User registration & login
+✅ Profile editing
+✅ Friend system (add/remove friends)
+3. Social Feed (FYP - For You Page)
+✅ Reels-style vertical scrolling (TikTok/Instagram Reels UI)
+✅ Infinite scroll with snap scrolling
+✅ Post creation (text, images, videos)
+✅ Like/Unlike posts
+✅ Comment on posts
+✅ View post details
+✅ Auto-play videos in viewport
+4. Real-Time Chat
+✅ WebSocket (Socket.IO) for real-time messaging
+✅ One-on-one chat
+✅ Message status indicators:
+🕐 Waiting (sending)
+✓ Sent (single tick)
+✓✓ Read (double tick - green)
+✅ Message read receipts
+✅ Edit messages
+✅ Delete messages
+✅ Auto-scroll to latest message
+✅ Real-time message delivery (no polling needed)
+5. File Upload System
+✅ Profile picture upload
+✅ Cover picture upload
+✅ Post media upload (images/videos)
+✅ Local file storage in /uploads
+6. Navigation & UI
+✅ Bottom navigation bar (FYP, Chat, Profile, Settings)
+✅ Persistent navigation state (localStorage)
+✅ Responsive design
+✅ Mobile-friendly
+🛠️ Technology Stack
+Frontend
+Technology	Purpose
+React 18	UI framework
+Vite	Build tool & dev server
+React Router DOM	Client-side routing
+Axios	HTTP client for API calls
+Socket.IO Client	Real-time WebSocket communication
+@react-oauth/google	Google OAuth integration
+JWT Decode	Decode JWT tokens
+CSS3	Styling (custom CSS, no framework)
+Backend
+Technology	Purpose
+Node.js	Runtime environment
+Express.js	Web framework
+MySQL	Relational database
+Sequelize	ORM (Object-Relational Mapping)
+Socket.IO	Real-time bidirectional communication
+JWT (jsonwebtoken)	Token-based authentication
+bcrypt	Password hashing
+Multer	File upload handling
+Helmet	Security middleware (CSP, XSS protection)
+CORS	Cross-origin resource sharing
+dotenv	Environment variable management
+Google OAuth 2.0	Third-party authentication
+Database Schema
+Deployment & Hosting
+Feature	Status
+Single Port Deployment	✅ Frontend + Backend on port 3002
+Production Build	✅ Vite production bundle
+Static File Serving	✅ Express serves React build
+API Routes	✅ All under /api/*
+File Uploads	✅ Served from /uploads/*
+🔐 Security Features
+✅ Helmet.js - Content Security Policy (CSP)
+✅ JWT Authentication - Secure token-based auth
+✅ bcrypt - Password hashing
+✅ CORS - Controlled cross-origin access
+✅ Environment Variables - Sensitive data protection
+✅ SQL Injection Protection - Sequelize ORM
+🚀 Key Features
+Real-Time Capabilities
+Instant message delivery via WebSocket
+Live message read receipts
+No polling needed - fully event-driven
+Modern UI/UX
+Reels-style vertical scrolling feed
+Snap scrolling behavior
+Auto-play videos
+Smooth animations & transitions
+Mobile-responsive design
+Social Features
+Google OAuth social login
+Friend connections
+Like & comment system
+Real-time chat with status indicators
+📦 Project Structure
+🌐 API Endpoints
+Endpoint	Method	Purpose
+/api/health	GET	Health check
+/api/users/register	POST	User registration
+/api/users/login	POST	User login
+/api/users/verify	POST	Verify Google OAuth
+/api/users/profile	GET	Get user profile
+/api/users/profile	PUT	Update profile
+/api/posts	GET/POST	Get/Create posts
+/api/posts/:id	GET/PUT/DELETE	Post operations
+/api/posts/:id/like	POST	Like/Unlike post
+/api/posts/:id/comments	GET/POST	Comments
+/api/chats	GET/POST	Get/Create chats
+/api/messages/:chatId	GET	Get messages
+/api/messages	POST	Send message
+/api/messages/:id	PUT/DELETE	Edit/Delete message
+/api/messages/:chatId/mark-read	PUT	Mark as read
+🎨 UI Components
+Login - Google OAuth login page
+Signup - User registration
+Homepage - Main app container with bottom nav
+Dashboard - FYP with Reels-style scrolling
+Chat - Real-time messaging interface
+Profile - User profile page
+Settings - App settings
+Your Cherry Berry app is a full-stack, production-ready social media platform with modern features like real-time chat, OAuth authentication, and a TikTok-style feed!

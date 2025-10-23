@@ -1,6 +1,7 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+// Use same origin in production, localhost in development
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.MODE === 'production' ? window.location.origin : 'http://localhost:3002');
 
 class SocketService {
   constructor() {
@@ -38,6 +39,13 @@ class SocketService {
     }
   }
 
+  registerUser(userId) {
+    if (this.socket) {
+      this.socket.emit('register_user', userId);
+      console.log('✅ User registered with socket:', userId);
+    }
+  }
+
   joinChat(chatId) {
     if (this.socket) {
       this.socket.emit('join_chat', chatId);
@@ -71,6 +79,18 @@ class SocketService {
   offMessagesRead() {
     if (this.socket) {
       this.socket.off('messages_read');
+    }
+  }
+
+  onNewChat(callback) {
+    if (this.socket) {
+      this.socket.on('new_chat', callback);
+    }
+  }
+
+  offNewChat() {
+    if (this.socket) {
+      this.socket.off('new_chat');
     }
   }
 

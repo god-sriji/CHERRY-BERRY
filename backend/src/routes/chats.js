@@ -45,6 +45,19 @@ router.post('/', authenticateToken, async (req, res) => {
     });
 
     if (existingChat) {
+      // Still emit event in case the other user doesn't have it in their list yet
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user_${smallerId}`).emit('new_chat', {
+          chat: existingChat,
+          otherUserId: largerId
+        });
+        io.to(`user_${largerId}`).emit('new_chat', {
+          chat: existingChat,
+          otherUserId: smallerId
+        });
+      }
+      
       return res.status(200).json({
         success: true,
         data: existingChat,
@@ -57,6 +70,20 @@ router.post('/', authenticateToken, async (req, res) => {
       user1_id: smallerId,
       user2_id: largerId
     });
+
+    // Get socket.io instance and emit new chat event to both users
+    const io = req.app.get('io');
+    if (io) {
+      // Emit to both users involved in the chat
+      io.to(`user_${smallerId}`).emit('new_chat', {
+        chat: newChat,
+        otherUserId: largerId
+      });
+      io.to(`user_${largerId}`).emit('new_chat', {
+        chat: newChat,
+        otherUserId: smallerId
+      });
+    }
 
     res.status(201).json({
       success: true,

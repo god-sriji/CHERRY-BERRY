@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Google OAuth</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .info {
+            background: #f0f0f0;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .error {
+            color: red;
+            background: #ffe0e0;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            color: green;
+            background: #e0ffe0;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Google OAuth Test Page</h1>
+    
+    <div class="info">
+        <p><strong>Current URL:</strong> <span id="currentUrl"></span></p>
+        <p><strong>Port:</strong> <span id="port"></span></p>
+    </div>
+
+    <div id="message"></div>
+
+    <div id="buttonDiv"></div>
+
+    <div class="info" style="text-align: left; margin-top: 30px;">
+        <h3>Instructions:</h3>
+        <ol>
+            <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a></li>
+            <li>Click on your OAuth Client ID</li>
+            <li>Add this URL to "Authorized JavaScript origins":</li>
+            <li><strong><span id="addThisUrl"></span></strong></li>
+            <li>Click SAVE and wait 5-10 minutes</li>
+            <li>Refresh this page and try again</li>
+        </ol>
+    </div>
+
+    <script>
+        // Display current URL info
+        const currentUrl = window.location.origin;
+        const port = window.location.port;
+        document.getElementById('currentUrl').textContent = currentUrl;
+        document.getElementById('port').textContent = port;
+        document.getElementById('addThisUrl').textContent = currentUrl;
+
+        // Initialize Google Sign-In
+        function handleCredentialResponse(response) {
+            document.getElementById('message').innerHTML = 
+                '<div class="success">✅ Success! Google OAuth is working correctly on this port.</div>' +
+                '<p>Credential Token: ' + response.credential.substring(0, 50) + '...</p>';
+        }
+
+        window.onload = function () {
+            google.accounts.id.initialize({
+                client_id: "796476024094-7uh3bnhtcla528cctr9nt71cl8krqcrb.apps.googleusercontent.com",
+                callback: handleCredentialResponse,
+                use_fedcm_for_prompt: true
+            });
+            
+            google.accounts.id.renderButton(
+                document.getElementById("buttonDiv"),
+                { 
+                    theme: "filled_blue", 
+                    size: "large",
+                    text: "signin_with",
+                    width: 300
+                }
+            );
+
+            // Show error message if button fails to load
+            setTimeout(() => {
+                const button = document.querySelector('#buttonDiv iframe');
+                if (!button) {
+                    document.getElementById('message').innerHTML = 
+                        '<div class="error">⚠️ Google Sign-In button failed to load. This usually means:<br>' +
+                        '1. The current origin (' + currentUrl + ') is not authorized<br>' +
+                        '2. Or you need to wait for Google to propagate the changes (5-10 minutes)</div>';
+                }
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

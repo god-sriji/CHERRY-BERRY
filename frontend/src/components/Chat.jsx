@@ -22,14 +22,47 @@ const Chat = () => {
     fetchChats();
     fetchAllUsers();
     
-    // Connect to socket
+    // Connect to socket and register user
     socketService.connect();
+    if (user?.user_id) {
+      socketService.registerUser(user.user_id);
+    }
+
+    // Listen for new chats
+    socketService.onNewChat(({ chat, otherUserId }) => {
+      console.log('📨 New chat received via socket:', chat);
+      
+      // Fetch the other user's info
+      userAPI.getUserById(otherUserId).then(response => {
+        if (response.success) {
+          const otherUser = response.data;
+          const chatWithUser = {
+            ...chat,
+            otherUser: otherUser
+          };
+          
+          setChats(prevChats => {
+            // Check if chat already exists
+            const exists = prevChats.some(c => c.chat_id === chat.chat_id);
+            if (!exists) {
+              console.log('✅ Adding new chat to list');
+              return [...prevChats, chatWithUser];
+            }
+            console.log('⚠️ Chat already exists, skipping');
+            return prevChats;
+          });
+        }
+      }).catch(err => {
+        console.error('Error fetching other user info:', err);
+      });
+    });
 
     // Cleanup on unmount
     return () => {
+      socketService.offNewChat();
       socketService.disconnect();
     };
-  }, []);
+  }, [user?.user_id]);
 
   // Restore selected chat from localStorage after chats are loaded
   useEffect(() => {
@@ -55,13 +88,16 @@ const Chat = () => {
 
       // Listen for new messages in real-time
       socketService.onNewMessage((newMessage) => {
+        console.log('📩 Received new message via socket:', newMessage);
         if (newMessage.chat_id === selectedChat.chat_id) {
           setMessages(prevMessages => {
             // Check if message already exists
             const exists = prevMessages.some(msg => msg.message_id === newMessage.message_id);
             if (!exists) {
+              console.log('✅ Adding message to chat');
               return [...prevMessages, newMessage];
             }
+            console.log('⚠️ Message already exists, skipping');
             return prevMessages;
           });
         }
@@ -154,32 +190,34 @@ const Chat = () => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedChat || sendingMessage) return;
 
-    const tempMessage = {
-      message_id: `temp-${Date.now()}`,
-      message_text: newMessage.trim(),
-      sender_id: user.user_id,
-      sent_at: new Date().toISOString(),
-      is_read: false,
-      sending: true // Temporary flag for "waiting" state
-    };
+    const messageText = newMessage.trim();
+    setNewMessage(''); // Clear input immediately
 
     try {
       setSendingMessage(true);
-      // Add temp message immediately for instant feedback
-      setMessages(prev => [...prev, tempMessage]);
-      setNewMessage('');
+      console.log('📤 Sending message:', messageText);
+      const response = await messageAPI.sendMessage(selectedChat.chat_id, messageText);
       
-      const response = await messageAPI.sendMessage(selectedChat.chat_id, tempMessage.message_text);
       if (response.success) {
-        // Remove temp message - real message will come via socket
-        setMessages(msgs => msgs.filter(msg => msg.message_id !== tempMessage.message_id));
+        console.log('✅ Message sent successfully:', response.data);
+        // Message will be added via socket, but if socket fails, add it manually
+        setTimeout(() => {
+          setMessages(prev => {
+            const exists = prev.some(msg => msg.message_id === response.data.message_id);
+            if (!exists) {
+              console.log('⚠️ Socket didnt add message, adding manually');
+              return [...prev, response.data];
+            }
+            return prev;
+          });
+        }, 100);
+        
         await fetchChats(); // Refresh chat list to update last_message_at
       }
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Failed to send message');
-      // Remove the temp message on error
-      setMessages(msgs => msgs.filter(msg => msg.message_id !== tempMessage.message_id));
+      setNewMessage(messageText); // Restore message on error
     } finally {
       setSendingMessage(false);
     }
@@ -231,7 +269,7 @@ const Chat = () => {
     <div className="chat-container">
       <div className="chat-layout">
         {/* Left Sidebar - Chat List */}
-        <div className="chat-sidebar">
+        <div className={`chat-sidebar ${selectedChat ? 'mobile-hidden' : ''}`}>
           <div className="chat-sidebar-header">
             <h3>Messages 💬</h3>
             <button 
@@ -279,7 +317,7 @@ const Chat = () => {
         </div>
 
         {/* Right Side - Messages */}
-        <div className="chat-messages">
+        <div className={`chat-messages ${selectedChat ? 'mobile-visible' : ''}`}>
           {!selectedChat ? (
             <div className="empty-state">
               <span className="empty-icon">💬</span>
@@ -289,6 +327,12 @@ const Chat = () => {
           ) : (
             <div className="message-view">
               <div className="message-header">
+                <button 
+                  className="mobile-back-btn"
+                  onClick={() => setSelectedChat(null)}
+                >
+                  ← Back
+                </button>
                 <div className="message-header-user">
                   {selectedChat.other_user?.profile_pic ? (
                     <img src={selectedChat.other_user.profile_pic} alt="Avatar" className="header-avatar" />
@@ -347,14 +391,14 @@ const Chat = () => {
                               </span>
                               {msg.sender_id === user.user_id && (
                                 <span 
-                                  className={`message-status ${msg.sending ? 'sending' : msg.is_read ? 'read' : 'sent'}`}
-                                  title={msg.sending ? 'Sending...' : msg.is_read ? 'Read' : 'Sent'}
+                                  className={`message-status ${msg.is_read ? 'read' : 'sent'}`}
+                                  title={msg.is_read ? 'Read' : 'Sent'}
                                 >
-                                  {msg.sending ? '🕐' : msg.is_read ? '✓✓' : '✓'}
+                                  {msg.is_read ? '✓✓' : '✓'}
                                 </span>
                               )}
                             </div>
-                            {msg.sender_id === user.user_id && !msg.sending && (
+                            {msg.sender_id === user.user_id && (
                               <div className="message-actions">
                                 <button 
                                   onClick={() => startEditing(msg)}

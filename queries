@@ -1,0 +1,15 @@
+use cherry_berry;
+
+CREATE TABLE `user` (
+  `user_id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `google_id` VARCHAR(50) DEFAULT NULL,
+  `email` VARCHAR(255) NOT NULL,
+  `password` VARCHAR(255) DEFAULT NULL,
+  `username` VARCHAR(100) DEFAULT NULL,
+  `bio` TEXT DEFAULT NULL,
+  `profile_pic` VARCHAR(255) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_users_email` (`email`),
+  UNIQUE KEY `uq_users_google_id` (`google_id`)
+);
+

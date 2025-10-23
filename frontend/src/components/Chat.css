@@ -185,6 +185,26 @@
   color: #333;
 }
 
+.mobile-back-btn {
+  display: none; /* Hidden by default on desktop */
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #ff3366;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: background 0.2s;
+  margin-right: 12px;
+}
+
+.mobile-back-btn:hover {
+  background: rgba(255, 51, 102, 0.1);
+}
+
 .message-content {
   flex: 1;
   padding: 1.5rem;
@@ -630,5 +650,35 @@
     width: 28px;
     height: 28px;
     font-size: 12px;
+  }
+
+  /* Mobile chat navigation styles */
+  .chat-sidebar {
+    width: 100%;
+    border-right: none;
+  }
+
+  .chat-sidebar.mobile-hidden {
+    display: none;
+  }
+
+  .chat-messages {
+    display: none;
+  }
+
+  .chat-messages.mobile-visible {
+    display: flex;
+    width: 100%;
+  }
+
+  .mobile-back-btn {
+    display: flex;
+  }
+}
+
+/* Hide back button on desktop */
+@media (min-width: 769px) {
+  .mobile-back-btn {
+    display: none;
   }
 }

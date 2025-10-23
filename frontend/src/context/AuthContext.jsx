@@ -50,14 +50,30 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, googleId = null) => {
+  const login = async (email, googleId = null, password = null) => {
     try {
-      const response = await userAPI.verify(email, googleId);
+      const response = await userAPI.verify(email, googleId, password);
+      console.log('Login response:', response);
+      
       if (response.success) {
         const { user, token } = response.data;
+        console.log('Setting token and user:', { user, token });
+        
         localStorage.setItem('token', token);
         setToken(token);
         setUser(user);
+
+        // Refresh user from backend to ensure the provider and any
+        // interceptor-attached requests are synchronized with the token.
+        try {
+          await loadUser();
+        } catch (e) {
+          console.warn('loadUser after login failed:', e);
+        }
+
+        console.log('User state after login:', user);
+        console.log('isAuthenticated should be:', !!user);
+        
         return { success: true, user };
       }
       return { success: false, message: response.message };
@@ -92,7 +108,7 @@ export const AuthProvider = ({ children }) => {
       const response = await userAPI.register(userData);
       if (response.success) {
         // Auto-login after registration
-        return await login(userData.email, userData.google_id);
+        return await login(userData.email, userData.google_id, userData.password);
       }
       return { success: false, message: response.message };
     } catch (error) {

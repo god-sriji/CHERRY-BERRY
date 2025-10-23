@@ -1,4 +1,14 @@
 {
+  "name": "cherry-berry",
+  "version": "1.0.0",
+  "description": "A modern social media platform with real-time chat",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "start": "cd backend && node server.js",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && node server.js"
+  },
   "dependencies": {
     "jsonwebtoken": "^9.0.2"
   }

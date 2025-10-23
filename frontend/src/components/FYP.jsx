@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { postAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import './FYP.css';
@@ -8,7 +8,7 @@ const FYP = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedPost, setSelectedPost] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [newPost, setNewPost] = useState({
     caption: '',
     image: null
@@ -16,10 +16,26 @@ const FYP = () => {
   const [imagePreview, setImagePreview] = useState(null);
   const [creating, setCreating] = useState(false);
   const [step, setStep] = useState(1); // Step 1: Image, Step 2: Caption
+  const containerRef = useRef(null);
+  const videoRefs = useRef([]);
+  const [toast, setToast] = useState({ show: false, message: '' });
 
   useEffect(() => {
     fetchPosts();
   }, []);
+
+  useEffect(() => {
+    // Play current video, pause others
+    videoRefs.current.forEach((video, index) => {
+      if (video) {
+        if (index === currentIndex) {
+          video.play().catch(e => console.log('Autoplay prevented:', e));
+        } else {
+          video.pause();
+        }
+      }
+    });
+  }, [currentIndex]);
 
   const fetchPosts = async () => {
     try {
@@ -31,6 +47,34 @@ const FYP = () => {
       console.error('Error fetching posts:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const showToast = (message) => {
+    setToast({ show: true, message });
+    setTimeout(() => {
+      setToast({ show: false, message: '' });
+    }, 2000);
+  };
+
+  const handleScroll = (e) => {
+    const container = e.target;
+    const scrollPosition = container.scrollTop;
+    const windowHeight = container.clientHeight;
+    const newIndex = Math.round(scrollPosition / windowHeight);
+    
+    if (newIndex !== currentIndex && newIndex >= 0 && newIndex < posts.length) {
+      setCurrentIndex(newIndex);
+    }
+  };
+
+  const scrollToPost = (index) => {
+    if (containerRef.current) {
+      const windowHeight = containerRef.current.clientHeight;
+      containerRef.current.scrollTo({
+        top: index * windowHeight,
+        behavior: 'smooth'
+      });
     }
   };
 
@@ -81,76 +125,118 @@ const FYP = () => {
   };
 
   return (
-    <div className="fyp-container">
-      <div className="fyp-header">
-        <div>
-          <h2>For You 🎯</h2>
-          <p>Discover posts from the community</p>
-        </div>
-        <button className="create-post-btn" onClick={() => setShowCreateModal(true)}>
-          + Create Post
+    <div className="fyp-reels-container">
+      {/* Header */}
+      <div className="reels-header">
+        <h2>Reels</h2>
+        <button className="create-reel-btn" onClick={() => setShowCreateModal(true)}>
+          <span className="plus-icon">+</span>
         </button>
       </div>
 
-      <div className="fyp-content">
+      {/* Reels Content */}
+      <div 
+        className="reels-scroll-container" 
+        ref={containerRef}
+        onScroll={handleScroll}
+      >
         {loading ? (
-          <div className="loading">Loading posts...</div>
+          <div className="reels-loading">
+            <div className="spinner"></div>
+            <p>Loading reels...</p>
+          </div>
         ) : posts.length === 0 ? (
-          <div className="empty-state">
-            <span className="empty-icon">📝</span>
+          <div className="reels-empty">
+            <span className="empty-icon">🎬</span>
             <h3>No posts yet</h3>
-            <p>Be the first to create a post!</p>
+            <p>Be the first to create a reel!</p>
+            <button className="create-first-btn" onClick={() => setShowCreateModal(true)}>
+              Create First Reel
+            </button>
           </div>
         ) : (
-          <div className="posts-grid">
-            {posts.map((post) => (
-              <div key={post.post_id} className="post-card" onClick={() => setSelectedPost(post)} style={{cursor: 'pointer'}}>
+          posts.map((post, index) => (
+            <div key={post.post_id} className="reel-item">
+              {/* Media */}
+              <div className="reel-media">
                 {post.media_url && (
-                  <div className="post-image">
-                    {post.media_type === 'video' ? (
-                      <video 
-                        src={`http://localhost:3002${post.media_url}`}
-                        controls
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        onError={(e) => {
-                          console.error('Video failed to load:', `http://localhost:3002${post.media_url}`);
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <img 
-                        src={`http://localhost:3002${post.media_url}`} 
-                        alt="Post"
-                        onError={(e) => e.target.style.display = 'none'}
-                      />
-                    )}
-                  </div>
+                  post.media_type === 'video' ? (
+                    <video 
+                      ref={(el) => videoRefs.current[index] = el}
+                      src={`http://localhost:3002${post.media_url}`}
+                      loop
+                      playsInline
+                      className="reel-video"
+                      onError={(e) => {
+                        console.error('Video failed to load');
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <img 
+                      src={`http://localhost:3002${post.media_url}`} 
+                      alt="Reel"
+                      className="reel-image"
+                      onError={(e) => e.target.style.display = 'none'}
+                    />
+                  )
                 )}
-                <div className="post-content">
-                  <div className="post-author">
-                    <div className="author-avatar">
+              </div>
+
+              {/* Overlay Info */}
+              <div className="reel-overlay">
+                {/* Bottom Info */}
+                <div className="reel-info">
+                  <div className="reel-author">
+                    <div className="author-avatar-small">
                       {post.user?.profile_pic ? (
                         <img src={post.user.profile_pic} alt="Avatar" />
                       ) : (
-                        <div className="avatar-placeholder">
+                        <div className="avatar-placeholder-small">
                           {post.user?.username?.[0]?.toUpperCase() || '?'}
                         </div>
                       )}
                     </div>
-                    <div className="author-info">
-                      <h4>{post.user?.username || 'Unknown User'}</h4>
-                      <p>{new Date(post.created_at).toLocaleDateString()}</p>
-                    </div>
+                    <span className="author-username">@{post.user?.username || 'unknown'}</span>
                   </div>
                   {post.caption && (
-                    <p className="post-caption">{post.caption}</p>
+                    <p className="reel-caption">{post.caption}</p>
                   )}
+                  <p className="reel-date">{new Date(post.created_at).toLocaleDateString()}</p>
+                </div>
+
+                {/* Side Actions */}
+                <div className="reel-actions">
+                  <button className="action-btn" onClick={() => showToast('Coming soon! ❤️')}>
+                    <span>❤️</span>
+                    <span className="action-count">0</span>
+                  </button>
+                  <button className="action-btn" onClick={() => showToast('Coming soon! 💬')}>
+                    <span>💬</span>
+                    <span className="action-count">0</span>
+                  </button>
+                  <button className="action-btn" onClick={() => showToast('Coming soon! 📤')}>
+                    <span>📤</span>
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))
         )}
       </div>
+
+      {/* Navigation Dots */}
+      {!loading && posts.length > 0 && (
+        <div className="reels-dots">
+          {posts.map((_, index) => (
+            <button
+              key={index}
+              className={`dot ${index === currentIndex ? 'active' : ''}`}
+              onClick={() => scrollToPost(index)}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Create Post Modal */}
       {showCreateModal && (
@@ -245,55 +331,10 @@ const FYP = () => {
         </div>
       )}
 
-      {/* Post Detail Modal */}
-      {selectedPost && (
-        <div className="modal-overlay" onClick={() => setSelectedPost(null)}>
-          <div className="modal-content-large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Post Details</h3>
-              <button className="close-btn" onClick={() => setSelectedPost(null)}>×</button>
-            </div>
-            <div className="modal-body-large">
-              {selectedPost.media_url && (
-                <div className="post-detail-image">
-                  {selectedPost.media_type === 'video' ? (
-                    <video 
-                      src={`http://localhost:3002${selectedPost.media_url}`}
-                      controls
-                      style={{ width: '100%', maxHeight: '70vh', objectFit: 'contain' }}
-                    />
-                  ) : (
-                    <img 
-                      src={`http://localhost:3002${selectedPost.media_url}`} 
-                      alt="Post"
-                    />
-                  )}
-                </div>
-              )}
-              {selectedPost.caption && (
-                <div className="post-detail-caption">
-                  <p>{selectedPost.caption}</p>
-                </div>
-              )}
-              <div className="post-detail-info">
-                <div className="post-author">
-                  <div className="author-avatar">
-                    {selectedPost.user?.profile_pic ? (
-                      <img src={selectedPost.user.profile_pic} alt="Avatar" />
-                    ) : (
-                      <div className="avatar-placeholder">
-                        {selectedPost.user?.username?.[0]?.toUpperCase() || '?'}
-                      </div>
-                    )}
-                  </div>
-                  <div className="author-info">
-                    <h4>{selectedPost.user?.username || 'Unknown User'}</h4>
-                    <p>{new Date(selectedPost.created_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="toast-notification">
+          {toast.message}
         </div>
       )}
     </div>

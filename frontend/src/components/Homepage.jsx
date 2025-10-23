@@ -12,11 +12,17 @@ const Homepage = () => {
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('activeTab') || 'fyp';
   });
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Save activeTab to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('activeTab', activeTab);
   }, [activeTab]);
+
+  const handleTabClick = (tab) => {
+    setActiveTab(tab);
+    setMenuOpen(false); // Close menu after selection on mobile
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -37,40 +43,55 @@ const Homepage = () => {
     <div className="homepage-container">
       {/* Top Navigation Bar */}
       <nav className="top-navbar">
-        <div className="navbar-brand">
+        <div className="navbar-brand" onClick={() => handleTabClick('chat')}>
           <h1>🍒 Cherry Berry</h1>
         </div>
-        <div className="navbar-tabs">
+        
+        {/* Desktop Navigation */}
+        <div className="navbar-tabs desktop-nav">
           <button
             className={`nav-tab ${activeTab === 'fyp' ? 'active' : ''}`}
-            onClick={() => setActiveTab('fyp')}
+            onClick={() => handleTabClick('fyp')}
           >
             <span className="tab-icon">🏠</span>
             <span className="tab-label">For You</span>
           </button>
           <button
             className={`nav-tab ${activeTab === 'chat' ? 'active' : ''}`}
-            onClick={() => setActiveTab('chat')}
+            onClick={() => handleTabClick('chat')}
           >
             <span className="tab-icon">💬</span>
             <span className="tab-label">Chat</span>
           </button>
           <button
             className={`nav-tab ${activeTab === 'profile' ? 'active' : ''}`}
-            onClick={() => setActiveTab('profile')}
+            onClick={() => handleTabClick('profile')}
           >
             <span className="tab-icon">👤</span>
             <span className="tab-label">Profile</span>
           </button>
           <button
             className={`nav-tab ${activeTab === 'settings' ? 'active' : ''}`}
-            onClick={() => setActiveTab('settings')}
+            onClick={() => handleTabClick('settings')}
           >
             <span className="tab-icon">⚙️</span>
             <span className="tab-label">Settings</span>
           </button>
         </div>
-        <div className="navbar-user">
+
+        {/* Mobile Hamburger Menu */}
+        <div className="mobile-menu">
+          <button 
+            className={`hamburger ${menuOpen ? 'active' : ''}`}
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+        </div>
+
+        <div className="navbar-user desktop-only">
           <img 
             src={user?.profile_pic || '/default-avatar.png'} 
             alt="Profile" 
@@ -79,6 +100,40 @@ const Homepage = () => {
           <span className="navbar-username">{user?.username}</span>
         </div>
       </nav>
+
+      {/* Mobile Dropdown Menu */}
+      {menuOpen && (
+        <div className="mobile-dropdown">
+          <button
+            className={`mobile-nav-item ${activeTab === 'fyp' ? 'active' : ''}`}
+            onClick={() => handleTabClick('fyp')}
+          >
+            <span className="tab-icon">🏠</span>
+            <span>For You</span>
+          </button>
+          <button
+            className={`mobile-nav-item ${activeTab === 'chat' ? 'active' : ''}`}
+            onClick={() => handleTabClick('chat')}
+          >
+            <span className="tab-icon">💬</span>
+            <span>Chat</span>
+          </button>
+          <button
+            className={`mobile-nav-item ${activeTab === 'profile' ? 'active' : ''}`}
+            onClick={() => handleTabClick('profile')}
+          >
+            <span className="tab-icon">👤</span>
+            <span>Profile</span>
+          </button>
+          <button
+            className={`mobile-nav-item ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => handleTabClick('settings')}
+          >
+            <span className="tab-icon">⚙️</span>
+            <span>Settings</span>
+          </button>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="homepage-content">

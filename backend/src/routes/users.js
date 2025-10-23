@@ -1,5 +1,6 @@
 import express from 'express';
 import { User } from '../models/index.js';
+import bcrypt from 'bcrypt';
 import { validateInput, authenticateToken } from '../middleware/index.js';
 import { generateToken } from '../utils/jwt.js';
 
@@ -36,6 +37,14 @@ router.post('/verify', async (req, res) => {
       });
     }
     
+    // If verifying by email and body includes password, validate it
+    if (!google_id && req.body.password) {
+      const passwordValid = await bcrypt.compare(req.body.password, user.password || '');
+      if (!passwordValid) {
+        return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      }
+    }
+    
     // Generate JWT token
     const token = generateToken(user);
     
@@ -62,7 +71,7 @@ router.post('/verify', async (req, res) => {
 // POST /api/users - Create new user (Register)
 router.post('/', validateInput(['email']), async (req, res) => {
   try {
-    const { google_id, email, username, bio, profile_pic } = req.body;
+    const { google_id, email, username, bio, profile_pic, password } = req.body;
     
     // Check if user already exists
     const existingUser = await User.findOne({ 
@@ -80,9 +89,16 @@ router.post('/', validateInput(['email']), async (req, res) => {
     }
     
     // Create new user
+    let hashed = null;
+    if (password) {
+      const SALT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || '10');
+      hashed = await bcrypt.hash(password, SALT_ROUNDS);
+    }
+
     const newUser = await User.create({
       google_id,
       email,
+      password: hashed,
       username: username || email.split('@')[0], // Default username from email
       bio,
       profile_pic

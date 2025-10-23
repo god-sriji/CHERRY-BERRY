@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002/api';
+// Use relative URL when in production (served from same origin)
+// Use localhost in development
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:3002/api');
 
 // Create axios instance
 const api = axios.create({
@@ -33,8 +35,11 @@ export const userAPI = {
   },
 
   // Verify user (login)
-  verify: async (email, google_id = null) => {
-    const response = await api.post('/users/verify', { email, google_id });
+  verify: async (email, google_id = null, password = null) => {
+    const body = { email };
+    if (google_id) body.google_id = google_id;
+    if (password) body.password = password;
+    const response = await api.post('/users/verify', body);
     return response.data;
   },
 
