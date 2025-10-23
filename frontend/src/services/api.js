@@ -4,6 +4,9 @@ import axios from 'axios';
 // Use localhost in development
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:3002/api');
 
+// Export base URL for media files (without /api)
+export const BASE_URL = API_URL.replace('/api', '');
+
 // Create axios instance
 const api = axios.create({
   baseURL: API_URL,
@@ -134,9 +137,26 @@ export const postAPI = {
 
 // Message API
 export const messageAPI = {
-  // Send message
+  // Send text message
   sendMessage: async (chat_id, message_text) => {
     const response = await api.post('/messages', { chat_id, message_text });
+    return response.data;
+  },
+
+  // Send media message (image, video, audio)
+  sendMediaMessage: async (chat_id, mediaFile, message_text = '') => {
+    const formData = new FormData();
+    formData.append('chat_id', chat_id);
+    formData.append('media', mediaFile);
+    if (message_text) {
+      formData.append('message_text', message_text);
+    }
+    
+    const response = await api.post('/messages', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
     return response.data;
   },
 
@@ -155,6 +175,33 @@ export const messageAPI = {
   // Delete message
   deleteMessage: async (messageId) => {
     const response = await api.delete(`/messages/${messageId}`);
+    return response.data;
+  },
+};
+
+// Block API
+export const blockAPI = {
+  // Block a user
+  blockUser: async (blocked_id) => {
+    const response = await api.post('/blocks', { blocked_id });
+    return response.data;
+  },
+
+  // Unblock a user
+  unblockUser: async (blocked_id) => {
+    const response = await api.delete(`/blocks/${blocked_id}`);
+    return response.data;
+  },
+
+  // Get list of blocked users
+  getBlockedUsers: async () => {
+    const response = await api.get('/blocks');
+    return response.data;
+  },
+
+  // Check if a user is blocked
+  checkBlockStatus: async (user_id) => {
+    const response = await api.get(`/blocks/check/${user_id}`);
     return response.data;
   },
 };

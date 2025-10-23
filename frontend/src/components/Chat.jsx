@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { chatAPI, userAPI, messageAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import socketService from '../services/socket';
+import UserProfile from './UserProfile';
 import './Chat.css';
 
 const Chat = () => {
@@ -10,13 +11,17 @@ const Chat = () => {
   const [allUsers, setAllUsers] = useState([]);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [mediaFile, setMediaFile] = useState(null);
+  const [mediaPreview, setMediaPreview] = useState(null);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingMessageText, setEditingMessageText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [selectedChat, setSelectedChat] = useState(null);
+  const [viewingUserId, setViewingUserId] = useState(null);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetchChats();
@@ -114,12 +119,25 @@ const Chat = () => {
           );
         }
       });
+
+      // Listen for message updates (edits)
+      socketService.onMessageUpdated((updatedMessage) => {
+        console.log('✏️ Message updated via socket:', updatedMessage);
+        if (updatedMessage.chat_id === selectedChat.chat_id) {
+          setMessages(prevMessages => 
+            prevMessages.map(msg => 
+              msg.message_id === updatedMessage.message_id ? updatedMessage : msg
+            )
+          );
+        }
+      });
       
       return () => {
         // Leave the chat room and remove listeners
         socketService.leaveChat(selectedChat.chat_id);
         socketService.offNewMessage();
         socketService.offMessagesRead();
+        socketService.offMessageUpdated();
       };
     }
   }, [selectedChat, user.user_id]);
@@ -188,15 +206,26 @@ const Chat = () => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedChat || sendingMessage) return;
+    if ((!newMessage.trim() && !mediaFile) || !selectedChat || sendingMessage) return;
 
     const messageText = newMessage.trim();
+    const file = mediaFile;
     setNewMessage(''); // Clear input immediately
+    setMediaFile(null);
+    setMediaPreview(null);
 
     try {
       setSendingMessage(true);
-      console.log('📤 Sending message:', messageText);
-      const response = await messageAPI.sendMessage(selectedChat.chat_id, messageText);
+      console.log('📤 Sending message:', messageText || 'Media file');
+      
+      let response;
+      if (file) {
+        // Send media message
+        response = await messageAPI.sendMediaMessage(selectedChat.chat_id, file, messageText);
+      } else {
+        // Send text message
+        response = await messageAPI.sendMessage(selectedChat.chat_id, messageText);
+      }
       
       if (response.success) {
         console.log('✅ Message sent successfully:', response.data);
@@ -218,8 +247,34 @@ const Chat = () => {
       console.error('Error sending message:', error);
       alert('Failed to send message');
       setNewMessage(messageText); // Restore message on error
+      setMediaFile(file);
     } finally {
       setSendingMessage(false);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setMediaFile(file);
+      
+      // Create preview for images and videos
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setMediaPreview({
+          url: reader.result,
+          type: file.type.split('/')[0] // 'image', 'video', or 'audio'
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const clearMediaPreview = () => {
+    setMediaFile(null);
+    setMediaPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -333,7 +388,11 @@ const Chat = () => {
                 >
                   ← Back
                 </button>
-                <div className="message-header-user">
+                <div 
+                  className="message-header-user" 
+                  onClick={() => setViewingUserId(selectedChat.other_user?.user_id)}
+                  style={{ cursor: 'pointer' }}
+                >
                   {selectedChat.other_user?.profile_pic ? (
                     <img src={selectedChat.other_user.profile_pic} alt="Avatar" className="header-avatar" />
                   ) : (
@@ -362,6 +421,14 @@ const Chat = () => {
                               type="text"
                               value={editingMessageText}
                               onChange={(e) => setEditingMessageText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleEditMessage(msg.message_id);
+                                } else if (e.key === 'Escape') {
+                                  cancelEditing();
+                                }
+                              }}
                               className="message-edit-input"
                               autoFocus
                             />
@@ -384,7 +451,38 @@ const Chat = () => {
                           </div>
                         ) : (
                           <div className="message-bubble">
-                            <p>{msg.message_text}</p>
+                            {/* Render media based on message type */}
+                            {msg.message_type === 'image' && (
+                              <div className="message-media">
+                                <img 
+                                  src={msg.message_text} 
+                                  alt="Shared image" 
+                                  className="message-image"
+                                  onClick={() => window.open(msg.message_text, '_blank')}
+                                />
+                              </div>
+                            )}
+                            {msg.message_type === 'video' && (
+                              <div className="message-media">
+                                <video 
+                                  src={msg.message_text} 
+                                  controls 
+                                  className="message-video"
+                                />
+                              </div>
+                            )}
+                            {msg.message_type === 'audio' && (
+                              <div className="message-media">
+                                <audio 
+                                  src={msg.message_text} 
+                                  controls 
+                                  className="message-audio"
+                                />
+                              </div>
+                            )}
+                            {msg.message_type === 'text' && (
+                              <p>{msg.message_text}</p>
+                            )}
                             <div className="message-footer">
                               <span className="message-time">
                                 {new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -400,13 +498,15 @@ const Chat = () => {
                             </div>
                             {msg.sender_id === user.user_id && (
                               <div className="message-actions">
-                                <button 
-                                  onClick={() => startEditing(msg)}
-                                  className="message-action-btn"
-                                  title="Edit message"
-                                >
-                                  ✏️
-                                </button>
+                                {msg.message_type === 'text' && (
+                                  <button 
+                                    onClick={() => startEditing(msg)}
+                                    className="message-action-btn"
+                                    title="Edit message"
+                                  >
+                                    ✏️
+                                  </button>
+                                )}
                                 <button 
                                   onClick={() => handleDeleteMessage(msg.message_id)}
                                   className="message-action-btn"
@@ -425,17 +525,63 @@ const Chat = () => {
                 )}
               </div>
               <form onSubmit={handleSendMessage} className="message-input-container">
-                <input
-                  type="text"
-                  placeholder="Type a message..."
-                  className="message-input"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  disabled={sendingMessage}
-                />
-                <button type="submit" className="send-btn" disabled={sendingMessage || !newMessage.trim()}>
-                  {sendingMessage ? 'Sending...' : 'Send'}
-                </button>
+                {/* Media Preview */}
+                {mediaPreview && (
+                  <div className="media-preview">
+                    {mediaPreview.type === 'image' && (
+                      <img src={mediaPreview.url} alt="Preview" className="preview-image" />
+                    )}
+                    {mediaPreview.type === 'video' && (
+                      <video src={mediaPreview.url} controls className="preview-video" />
+                    )}
+                    {mediaPreview.type === 'audio' && (
+                      <audio src={mediaPreview.url} controls className="preview-audio" />
+                    )}
+                    <button 
+                      type="button" 
+                      onClick={clearMediaPreview} 
+                      className="clear-preview-btn"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+                
+                <div className="input-row">
+                  {/* File input buttons */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    accept="image/*,video/*,audio/*"
+                    style={{ display: 'none' }}
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="attach-btn"
+                    title="Attach media"
+                    disabled={sendingMessage}
+                  >
+                    📎
+                  </button>
+                  
+                  <input
+                    type="text"
+                    placeholder="Type a message..."
+                    className="message-input"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    disabled={sendingMessage}
+                  />
+                  <button 
+                    type="submit" 
+                    className="send-btn" 
+                    disabled={sendingMessage || (!newMessage.trim() && !mediaFile)}
+                  >
+                    {sendingMessage ? '⏳' : '📤'}
+                  </button>
+                </div>
               </form>
             </div>
           )}
@@ -477,6 +623,14 @@ const Chat = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* User Profile Modal */}
+      {viewingUserId && (
+        <UserProfile 
+          userId={viewingUserId} 
+          onClose={() => setViewingUserId(null)} 
+        />
       )}
     </div>
   );

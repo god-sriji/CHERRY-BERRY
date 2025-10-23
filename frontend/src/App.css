@@ -4,17 +4,20 @@
   padding: 0;
   width: 100%;
   height: 100vh;
+  background: url('https://i.pinimg.com/originals/d4/f5/d7/d4f5d7654bda4c9842291069b0551f7b.jpg') no-repeat center center fixed;
+  background-size: cover;
 }
 
-/* Halloween Loading Screen 🎃 */
+/* Loading Screen with Glassmorphism */
 .loading-screen {
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a0f14 50%, #2a1520 100%);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  color: white;
   gap: var(--spacing-lg);
   position: relative;
   overflow: hidden;

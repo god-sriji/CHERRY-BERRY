@@ -232,3 +232,10 @@ Check these files for reference:
 - API Documentation: `backend/API_DOCUMENTATION.md`
 - Testing Guide: `backend/TESTING_GUIDE.md`
 - Quick Start: `backend/QUICK_START.md`
+
+
+
+
+npx cloudflared tunnel --url http://localhost:3002
+add the url to frontend/.env
+npm run dev // in backend

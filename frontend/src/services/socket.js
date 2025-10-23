@@ -82,6 +82,18 @@ class SocketService {
     }
   }
 
+  onMessageUpdated(callback) {
+    if (this.socket) {
+      this.socket.on('message_updated', callback);
+    }
+  }
+
+  offMessageUpdated() {
+    if (this.socket) {
+      this.socket.off('message_updated');
+    }
+  }
+
   onNewChat(callback) {
     if (this.socket) {
       this.socket.on('new_chat', callback);

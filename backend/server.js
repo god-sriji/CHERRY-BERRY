@@ -13,6 +13,7 @@ import usersRouter from './src/routes/users.js';
 import chatsRouter from './src/routes/chats.js';
 import postsRouter from './src/routes/posts.js';
 import messagesRouter from './src/routes/messages.js';
+import blocksRouter from './src/routes/blocks.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -67,11 +68,12 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'", "http://192.168.1.7:3002"],
-      imgSrc: ["'self'", "data:", "blob:", "https:", "http://192.168.1.7:3002", ...allowedOrigins.filter(o => typeof o === 'string')],
+      defaultSrc: ["'self'", "http://localhost:3002", "http://127.0.0.1:3002", "http://192.168.1.7:3002", ...allowedOrigins.filter(o => typeof o === 'string')],
+      imgSrc: ["'self'", "data:", "blob:", "https:", "http:", "http://localhost:3002", "http://127.0.0.1:3002", "http://192.168.1.7:3002", ...allowedOrigins.filter(o => typeof o === 'string')],
+      mediaSrc: ["'self'", "blob:", "data:", "https:", "http:", "http://localhost:3002", "http://127.0.0.1:3002", "http://192.168.1.7:3002", ...allowedOrigins.filter(o => typeof o === 'string')],
       styleSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://apis.google.com"],
-      connectSrc: ["'self'", "http://192.168.1.7:3002", "https://accounts.google.com", "https://apis.google.com", "https://www.googleapis.com", ...allowedOrigins.filter(o => typeof o === 'string')],
+      connectSrc: ["'self'", "http://localhost:3002", "http://127.0.0.1:3002", "http://192.168.1.7:3002", "https://accounts.google.com", "https://apis.google.com", "https://www.googleapis.com", ...allowedOrigins.filter(o => typeof o === 'string')],
       frameSrc: ["'self'", "https://accounts.google.com"],
       formAction: ["'self'", "https://accounts.google.com"],
       frameAncestors: ["'self'", "https://accounts.google.com"]
@@ -85,8 +87,13 @@ app.use(morgan('dev')); // Cleaner format: :method :url :status :response-time m
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files with CORS headers
-app.use('/uploads', cors(corsOptions), express.static('uploads'));
+// Serve uploaded files with CORS headers and proper video streaming support
+app.use('/uploads', cors(corsOptions), (req, res, next) => {
+  // Add headers for video streaming
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'public, max-age=0');
+  next();
+}, express.static('uploads'));
 
 // API routes - all under /api/
 app.get('/api/health', (req, res) => res.json({ status: 'healthy' }));
@@ -94,6 +101,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/chats', chatsRouter);
 app.use('/api/posts', postsRouter);
 app.use('/api/messages', messagesRouter);
+app.use('/api/blocks', blocksRouter);
 
 // Test OAuth page (for debugging)
 app.get('/test-oauth', (req, res) => {

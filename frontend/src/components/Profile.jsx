@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { postAPI } from '../services/api';
+import { postAPI, chatAPI } from '../services/api';
 import './Profile.css';
 
 const Profile = () => {
   const { user } = useAuth();
   const [posts, setPosts] = useState([]);
+  const [friendsCount, setFriendsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState(null);
 
   useEffect(() => {
     if (user) {
       fetchUserPosts();
+      fetchFriendsCount();
     }
   }, [user]);
 
@@ -25,6 +27,17 @@ const Profile = () => {
       console.error('Error fetching user posts:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFriendsCount = async () => {
+    try {
+      const response = await chatAPI.getChats();
+      if (response.success) {
+        setFriendsCount(response.data.length);
+      }
+    } catch (error) {
+      console.error('Error fetching friends count:', error);
     }
   };
 
@@ -69,12 +82,8 @@ const Profile = () => {
               <span className="stat-label">Posts</span>
             </div>
             <div className="stat-item">
-              <span className="stat-number">0</span>
-              <span className="stat-label">Followers</span>
-            </div>
-            <div className="stat-item">
-              <span className="stat-number">0</span>
-              <span className="stat-label">Following</span>
+              <span className="stat-number">{friendsCount}</span>
+              <span className="stat-label">Friends</span>
             </div>
           </div>
         </div>

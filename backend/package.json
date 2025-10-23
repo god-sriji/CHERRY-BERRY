@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "cd ../frontend && npm run build && cd ../backend && node server.js",
+    "server": "node server.js"
   },
   "keywords": [
     "express",

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +11,14 @@ const Login = ({ onSwitchToSignup }) => {
   const [successMessage, setSuccessMessage] = useState('');
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('lastLoginEmail');
+    const savedPassword = localStorage.getItem('lastLoginPassword');
+    if (savedEmail) setEmailInput(savedEmail);
+    if (savedPassword) setPasswordInput(savedPassword);
+  }, []);
 
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
@@ -73,6 +81,10 @@ const Login = ({ onSwitchToSignup }) => {
       const res = await login(emailInput, null, passwordInput);
       console.log('Email login result:', res);
       if (res.success) {
+        // Save credentials for auto-fill
+        localStorage.setItem('lastLoginEmail', emailInput);
+        localStorage.setItem('lastLoginPassword', passwordInput);
+        
         setSuccessMessage('Login successful! Redirecting...');
         window.location.assign('/');
       } else {

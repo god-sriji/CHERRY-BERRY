@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +11,14 @@ const Signup = ({ onSwitchToLogin }) => {
   const [successMessage, setSuccessMessage] = useState('');
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('lastLoginEmail');
+    const savedPassword = localStorage.getItem('lastLoginPassword');
+    if (savedEmail) setEmailInput(savedEmail);
+    if (savedPassword) setPasswordInput(savedPassword);
+  }, []);
 
   const googleSignup = useGoogleLogin({
     onSuccess: async (tokenResponse) => {

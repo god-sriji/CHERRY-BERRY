@@ -2,19 +2,23 @@ import express from 'express';
 import { Op } from 'sequelize';
 import { Message, User, Chat } from '../models/index.js';
 import { authenticateToken } from '../middleware/index.js';
+import { uploadMedia } from '../middleware/upload.js';
+import path from 'path';
 
 const router = express.Router();
 
-// POST /api/messages - Send a message
-router.post('/', authenticateToken, async (req, res) => {
+// POST /api/messages - Send a message (text or media)
+router.post('/', authenticateToken, uploadMedia, async (req, res) => {
   try {
-    const { chat_id, message_text } = req.body;
+    const { chat_id, message_text, message_type } = req.body;
     const sender_id = req.user.user_id;
+    const mediaFile = req.file;
 
-    if (!chat_id || !message_text) {
+    // Validate: must have either text or media
+    if (!chat_id || (!message_text && !mediaFile)) {
       return res.status(400).json({
         success: false,
-        message: 'Chat ID and message text are required'
+        message: 'Chat ID and either message text or media file are required'
       });
     }
 
@@ -36,10 +40,30 @@ router.post('/', authenticateToken, async (req, res) => {
       });
     }
 
+    // Determine message type based on file
+    let finalMessageType = 'text';
+    let finalMessageText = message_text || null;
+
+    if (mediaFile) {
+      const mimetype = mediaFile.mimetype;
+      if (mimetype.startsWith('image/')) {
+        finalMessageType = 'image';
+      } else if (mimetype.startsWith('video/')) {
+        finalMessageType = 'video';
+      } else if (mimetype.startsWith('audio/')) {
+        finalMessageType = 'audio';
+      }
+      // Store the file path as message_text for media messages
+      finalMessageText = `/uploads/media/${mediaFile.filename}`;
+    } else if (message_type) {
+      finalMessageType = message_type;
+    }
+
     const newMessage = await Message.create({
       chat_id,
       sender_id,
-      message_text
+      message_text: finalMessageText,
+      message_type: finalMessageType
     });
 
     // Update chat's last_message_at
@@ -255,6 +279,12 @@ router.put('/:messageId', authenticateToken, async (req, res) => {
         attributes: ['user_id', 'username', 'profile_pic']
       }]
     });
+
+    // Emit socket event for real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`chat_${message.chat_id}`).emit('message_updated', updatedMessage);
+    }
 
     res.json({
       success: true,
