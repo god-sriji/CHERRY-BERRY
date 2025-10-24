@@ -20,8 +20,38 @@ const Chat = () => {
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [selectedChat, setSelectedChat] = useState(null);
   const [viewingUserId, setViewingUserId] = useState(null);
+  const [unreadMessages, setUnreadMessages] = useState({}); // Track unread counts per chat
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Mark messages as read when viewing a chat
+  const markMessagesAsRead = async (chatId) => {
+    try {
+      // Get unread messages from the other user
+      const unreadMsgs = messages.filter(m => m.sender_id !== user.user_id && !m.is_read);
+      
+      if (unreadMsgs.length > 0) {
+        // Call backend to mark as read
+        await messageAPI.markAsRead(chatId);
+        
+        // Update local state
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg.sender_id !== user.user_id ? { ...msg, is_read: true } : msg
+          )
+        );
+        
+        // Emit read event via socket to notify sender in real-time
+        socketService.socket?.emit('mark_messages_read', { chatId, userId: user.user_id });
+        console.log('✅ Messages marked as read via socket');
+        
+        // Clear unread count for this chat
+        setUnreadMessages(prev => ({ ...prev, [chatId]: 0 }));
+      }
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  };
 
   useEffect(() => {
     fetchChats();
@@ -91,6 +121,11 @@ const Chat = () => {
       // Join the chat room via socket
       socketService.joinChat(selectedChat.chat_id);
 
+      // Mark messages as read
+      setTimeout(() => {
+        markMessagesAsRead(selectedChat.chat_id);
+      }, 500);
+
       // Listen for new messages in real-time
       socketService.onNewMessage((newMessage) => {
         console.log('📩 Received new message via socket:', newMessage);
@@ -111,12 +146,13 @@ const Chat = () => {
       // Listen for read status updates
       socketService.onMessagesRead(({ chatId }) => {
         if (chatId === selectedChat.chat_id) {
-          // Update all sent messages to read
+          // Update all sent messages to read in real-time
           setMessages(prevMessages => 
             prevMessages.map(msg => 
               msg.sender_id === user.user_id ? { ...msg, is_read: true } : msg
             )
           );
+          console.log('✅ Received read receipt via socket');
         }
       });
 
@@ -186,6 +222,10 @@ const Chat = () => {
       const response = await messageAPI.getMessages(chatId);
       if (response.success) {
         setMessages(response.data);
+        
+        // Count unread messages from the other user
+        const unreadCount = response.data.filter(m => m.sender_id !== user.user_id && !m.is_read).length;
+        setUnreadMessages(prev => ({ ...prev, [chatId]: unreadCount }));
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -360,7 +400,15 @@ const Chat = () => {
                     )}
                   </div>
                   <div className="chat-item-info">
-                    <h4>{chat.other_user?.username || 'Unknown User'}</h4>
+                    <h4>
+                      <span>{chat.other_user?.username || 'Unknown User'}</span>
+                      {unreadMessages[chat.chat_id] > 0 && (
+                        <span className="unread-indicator">
+                          <span className="unread-dot"></span>
+                          <span className="unread-badge">{unreadMessages[chat.chat_id]}</span>
+                        </span>
+                      )}
+                    </h4>
                     <p className="last-message-time">
                       {new Date(chat.last_message_at).toLocaleDateString()}
                     </p>

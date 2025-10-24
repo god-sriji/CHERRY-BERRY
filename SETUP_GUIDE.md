@@ -236,6 +236,3 @@ Check these files for reference:
 
 
 
-npx cloudflared tunnel --url http://localhost:3002
-add the url to frontend/.env
-npm run dev // in backend

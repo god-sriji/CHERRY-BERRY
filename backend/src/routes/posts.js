@@ -81,32 +81,17 @@ router.post('/', authenticateToken, upload.single('media'), async (req, res) => 
 // GET /api/posts - Get all posts (FYP - For You Page)
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 20 } = req.query;
-    const limitNum = Number(limit);
-    const pageNum = Number(page);
-    const offset = (pageNum - 1) * limitNum;
-
     const posts = await query(
       `SELECT p.*, 
               u.user_id, u.username, u.profile_pic
        FROM POST p
        LEFT JOIN USER u ON p.user_id = u.user_id
-       ORDER BY p.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [limitNum, offset]
+       ORDER BY p.created_at DESC`
     );
-
-    const [{ total }] = await query('SELECT COUNT(*) as total FROM POST');
 
     res.json({
       success: true,
       data: posts,
-      pagination: {
-        total,
-        page: pageNum,
-        limit: limitNum,
-        totalPages: Math.ceil(total / limitNum)
-      },
       message: 'Posts retrieved successfully'
     });
   } catch (error) {
