@@ -8,7 +8,7 @@ import morgan from 'morgan';
 import compression from 'compression';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { testConnection, syncDatabase } from './src/config/database.js';
+import { testConnection, syncDatabase } from './src/config/db.js';
 import usersRouter from './src/routes/users.js';
 import chatsRouter from './src/routes/chats.js';
 import postsRouter from './src/routes/posts.js';

@@ -2,7 +2,7 @@
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Post, User } from '../models/index.js';
+import { query, queryOne } from '../config/db.js';
 import { authenticateToken } from '../middleware/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -56,12 +56,12 @@ router.post('/', authenticateToken, upload.single('media'), async (req, res) => 
     const mediaUrl = req.file ? `/uploads/posts/${req.file.filename}` : null;
     const mediaType = req.file ? (req.file.mimetype.startsWith('video/') ? 'video' : 'image') : null;
 
-    const newPost = await Post.create({
-      user_id: userId,
-      media_url: mediaUrl,
-      media_type: mediaType,
-      caption: caption || null
-    });
+    const result = await query(
+      'INSERT INTO POST (user_id, media_url, media_type, caption) VALUES (?, ?, ?, ?)',
+      [userId, mediaUrl, mediaType, caption || null]
+    );
+
+    const newPost = await queryOne('SELECT * FROM POST WHERE post_id = ?', [result.insertId]);
 
     res.status(201).json({
       success: true,
@@ -82,27 +82,30 @@ router.post('/', authenticateToken, upload.single('media'), async (req, res) => 
 router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
-    const offset = (page - 1) * limit;
+    const limitNum = Number(limit);
+    const pageNum = Number(page);
+    const offset = (pageNum - 1) * limitNum;
 
-    const posts = await Post.findAndCountAll({
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-      order: [['created_at', 'DESC']],
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['user_id', 'username', 'profile_pic']
-      }]
-    });
+    const posts = await query(
+      `SELECT p.*, 
+              u.user_id, u.username, u.profile_pic
+       FROM POST p
+       LEFT JOIN USER u ON p.user_id = u.user_id
+       ORDER BY p.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [limitNum, offset]
+    );
+
+    const [{ total }] = await query('SELECT COUNT(*) as total FROM POST');
 
     res.json({
       success: true,
-      data: posts.rows,
+      data: posts,
       pagination: {
-        total: posts.count,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(posts.count / limit)
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
       },
       message: 'Posts retrieved successfully'
     });
@@ -121,15 +124,15 @@ router.get('/user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const posts = await Post.findAll({
-      where: { user_id: userId },
-      order: [['created_at', 'DESC']],
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['user_id', 'username', 'profile_pic']
-      }]
-    });
+    const posts = await query(
+      `SELECT p.*, 
+              u.user_id, u.username, u.profile_pic
+       FROM POST p
+       LEFT JOIN USER u ON p.user_id = u.user_id
+       WHERE p.user_id = ?
+       ORDER BY p.created_at DESC`,
+      [userId]
+    );
 
     res.json({
       success: true,
@@ -151,13 +154,14 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const post = await Post.findByPk(id, {
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['user_id', 'username', 'profile_pic']
-      }]
-    });
+    const post = await queryOne(
+      `SELECT p.*, 
+              u.user_id, u.username, u.profile_pic
+       FROM POST p
+       LEFT JOIN USER u ON p.user_id = u.user_id
+       WHERE p.post_id = ?`,
+      [id]
+    );
 
     if (!post) {
       return res.status(404).json({
@@ -187,7 +191,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const userId = req.user.user_id;
 
-    const post = await Post.findByPk(id);
+    const post = await queryOne('SELECT * FROM POST WHERE post_id = ?', [id]);
 
     if (!post) {
       return res.status(404).json({
@@ -204,7 +208,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       });
     }
 
-    await post.destroy();
+    await query('DELETE FROM POST WHERE post_id = ?', [id]);
 
     res.json({
       success: true,

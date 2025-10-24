@@ -1,8 +1,8 @@
 import express from 'express';
-import { User } from '../models/index.js';
 import bcrypt from 'bcrypt';
 import { validateInput, authenticateToken } from '../middleware/index.js';
 import { generateToken } from '../utils/jwt.js';
+import { query, queryOne } from '../config/db.js';
 
 const router = express.Router();
 
@@ -11,7 +11,7 @@ const router = express.Router();
 // POST /api/users/verify - Verify user (Login)
 router.post('/verify', async (req, res) => {
   try {
-    const { email, google_id } = req.body;
+    const { email, google_id, password } = req.body;
     
     if (!email && !google_id) {
       return res.status(400).json({
@@ -21,14 +21,12 @@ router.post('/verify', async (req, res) => {
     }
     
     // Find user by email or google_id
-    const whereClause = {};
+    let user;
     if (google_id) {
-      whereClause.google_id = google_id;
+      user = await queryOne('SELECT * FROM USER WHERE google_id = ?', [google_id]);
     } else if (email) {
-      whereClause.email = email;
+      user = await queryOne('SELECT * FROM USER WHERE email = ?', [email]);
     }
-    
-    const user = await User.findOne({ where: whereClause });
     
     if (!user) {
       return res.status(404).json({
@@ -38,8 +36,8 @@ router.post('/verify', async (req, res) => {
     }
     
     // If verifying by email and body includes password, validate it
-    if (!google_id && req.body.password) {
-      const passwordValid = await bcrypt.compare(req.body.password, user.password || '');
+    if (!google_id && password) {
+      const passwordValid = await bcrypt.compare(password, user.password || '');
       if (!passwordValid) {
         return res.status(401).json({ success: false, message: 'Invalid credentials' });
       }
@@ -74,12 +72,17 @@ router.post('/', validateInput(['email']), async (req, res) => {
     const { google_id, email, username, bio, profile_pic, password } = req.body;
     
     // Check if user already exists
-    const existingUser = await User.findOne({ 
-      where: { 
-        ...(google_id && { google_id }),
-        ...(email && { email })
-      } 
-    });
+    let existingUser;
+    if (google_id && email) {
+      existingUser = await queryOne(
+        'SELECT * FROM USER WHERE google_id = ? OR email = ?',
+        [google_id, email]
+      );
+    } else if (google_id) {
+      existingUser = await queryOne('SELECT * FROM USER WHERE google_id = ?', [google_id]);
+    } else if (email) {
+      existingUser = await queryOne('SELECT * FROM USER WHERE email = ?', [email]);
+    }
     
     if (existingUser) {
       return res.status(409).json({
@@ -88,21 +91,23 @@ router.post('/', validateInput(['email']), async (req, res) => {
       });
     }
     
-    // Create new user
+    // Hash password if provided
     let hashed = null;
     if (password) {
       const SALT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || '10');
       hashed = await bcrypt.hash(password, SALT_ROUNDS);
     }
 
-    const newUser = await User.create({
-      google_id,
-      email,
-      password: hashed,
-      username: username || email.split('@')[0], // Default username from email
-      bio,
-      profile_pic
-    });
+    // Insert new user
+    const defaultUsername = username || (email ? email.split('@')[0] : 'user');
+    const result = await query(
+      `INSERT INTO USER (google_id, email, password, username, bio, profile_pic, created_at) 
+       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [google_id || null, email, hashed, defaultUsername, bio || null, profile_pic || null]
+    );
+    
+    // Fetch the created user
+    const newUser = await queryOne('SELECT * FROM USER WHERE user_id = ?', [result.insertId]);
     
     res.status(201).json({
       success: true,
@@ -112,14 +117,10 @@ router.post('/', validateInput(['email']), async (req, res) => {
   } catch (error) {
     console.error('Error creating user:', error);
     
-    if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
+    if (error.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({
         success: false,
-        message: 'Validation error',
-        errors: error.errors.map(e => ({
-          field: e.path,
-          message: e.message
-        }))
+        message: 'Validation error: Email or Google ID already exists'
       });
     }
     
@@ -134,37 +135,26 @@ router.post('/', validateInput(['email']), async (req, res) => {
 // GET /api/users - Get all users
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 10, search } = req.query;
-    const offset = (page - 1) * limit;
+    const { search } = req.query;
     
-    const whereClause = {};
+    let sql = 'SELECT * FROM USER';
+    const params = [];
     
     // Search by username or email
     if (search) {
-      const { Op } = await import('sequelize');
-      whereClause[Op.or] = [
-        { username: { [Op.like]: `%${search}%` } },
-        { email: { [Op.like]: `%${search}%` } }
-      ];
+      sql += ' WHERE username LIKE ? OR email LIKE ?';
+      const searchParam = `%${search}%`;
+      params.push(searchParam, searchParam);
     }
     
-    const users = await User.findAndCountAll({
-      where: whereClause,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-      order: [['created_at', 'DESC']],
-      attributes: { exclude: ['google_id'] } // Don't expose google_id in list
-    });
+    sql += ' ORDER BY created_at DESC';
+    
+    // Get users
+    const users = await query(sql, params);
     
     res.json({
       success: true,
-      data: users.rows,
-      pagination: {
-        total: users.count,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(users.count / limit)
-      },
+      data: users,
       message: 'Users retrieved successfully'
     });
   } catch (error) {
@@ -183,7 +173,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     // req.user contains decoded token data
     const userId = req.user.user_id;  // ✅ Get user_id from token
     
-    const user = await User.findByPk(userId);
+    const user = await queryOne('SELECT * FROM USER WHERE user_id = ?', [userId]);
     
     if (!user) {
       return res.status(404).json({
@@ -212,9 +202,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const user = await User.findByPk(id, {
-      attributes: { exclude: ['google_id'] } // Don't expose google_id
-    });
+    const user = await queryOne('SELECT * FROM USER WHERE user_id = ?', [id]);
     
     if (!user) {
       return res.status(404).json({
@@ -244,7 +232,7 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { email, username, bio, profile_pic } = req.body;
     
-    const user = await User.findByPk(id);
+    const user = await queryOne('SELECT * FROM USER WHERE user_id = ?', [id]);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -254,7 +242,7 @@ router.put('/:id', async (req, res) => {
     
     // Check if email is being changed and if it already exists
     if (email && email !== user.email) {
-      const existingUser = await User.findOne({ where: { email } });
+      const existingUser = await queryOne('SELECT * FROM USER WHERE email = ?', [email]);
       if (existingUser) {
         return res.status(409).json({
           success: false,
@@ -264,29 +252,37 @@ router.put('/:id', async (req, res) => {
     }
     
     // Update user fields
-    await user.update({
-      email: email || user.email,
-      username: username || user.username,
-      bio: bio !== undefined ? bio : user.bio,
-      profile_pic: profile_pic !== undefined ? profile_pic : user.profile_pic
-    });
+    await query(
+      `UPDATE USER SET 
+        email = ?, 
+        username = ?, 
+        bio = ?, 
+        profile_pic = ? 
+       WHERE user_id = ?`,
+      [
+        email || user.email,
+        username || user.username,
+        bio !== undefined ? bio : user.bio,
+        profile_pic !== undefined ? profile_pic : user.profile_pic,
+        id
+      ]
+    );
+    
+    // Fetch updated user
+    const updatedUser = await queryOne('SELECT * FROM USER WHERE user_id = ?', [id]);
     
     res.json({
       success: true,
-      data: user,
+      data: updatedUser,
       message: 'User updated successfully'
     });
   } catch (error) {
     console.error('Error updating user:', error);
     
-    if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
+    if (error.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({
         success: false,
-        message: 'Validation error',
-        errors: error.errors.map(e => ({
-          field: e.path,
-          message: e.message
-        }))
+        message: 'Validation error: Email already exists'
       });
     }
     
@@ -303,7 +299,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const user = await User.findByPk(id);
+    const user = await queryOne('SELECT * FROM USER WHERE user_id = ?', [id]);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -311,7 +307,7 @@ router.delete('/:id', async (req, res) => {
       });
     }
     
-    await user.destroy();
+    await query('DELETE FROM USER WHERE user_id = ?', [id]);
     
     res.json({
       success: true,
@@ -333,17 +329,8 @@ router.delete('/:id', async (req, res) => {
 router.get('/:id/profile', async (req, res) => {
   try {
     const { id } = req.params;
-    const { Post } = await import('../models/index.js');
     
-    const user = await User.findByPk(id, {
-      attributes: { exclude: ['google_id'] },
-      include: [
-        {
-          model: Post,
-          attributes: ['post_id', 'media_url', 'caption', 'created_at']
-        }
-      ]
-    });
+    const user = await queryOne('SELECT * FROM USER WHERE user_id = ?', [id]);
     
     if (!user) {
       return res.status(404).json({
@@ -352,12 +339,19 @@ router.get('/:id/profile', async (req, res) => {
       });
     }
     
+    // Get user's posts
+    const posts = await query(
+      'SELECT post_id, media_url, caption, created_at FROM POST WHERE user_id = ? ORDER BY created_at DESC',
+      [id]
+    );
+    
     res.json({
       success: true,
       data: {
         user,
+        posts,
         stats: {
-          total_posts: user.Posts ? user.Posts.length : 0
+          total_posts: posts.length
         }
       },
       message: 'User profile retrieved successfully'

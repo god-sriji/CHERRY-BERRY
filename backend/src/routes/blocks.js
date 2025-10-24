@@ -1,5 +1,5 @@
 import express from 'express';
-import { Block, User } from '../models/index.js';
+import { query, queryOne } from '../config/db.js';
 import { authenticateToken } from '../middleware/index.js';
 
 const router = express.Router();
@@ -26,7 +26,7 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     // Check if user exists
-    const userToBlock = await User.findByPk(blocked_id);
+    const userToBlock = await queryOne('SELECT * FROM USER WHERE user_id = ?', [blocked_id]);
     if (!userToBlock) {
       return res.status(404).json({
         success: false,
@@ -35,9 +35,10 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     // Check if already blocked
-    const existingBlock = await Block.findOne({
-      where: { blocker_id, blocked_id }
-    });
+    const existingBlock = await queryOne(
+      'SELECT * FROM BLOCK WHERE blocker_id = ? AND blocked_id = ?',
+      [blocker_id, blocked_id]
+    );
 
     if (existingBlock) {
       return res.status(400).json({
@@ -47,10 +48,12 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     // Create block
-    const newBlock = await Block.create({
-      blocker_id,
-      blocked_id
-    });
+    const result = await query(
+      'INSERT INTO BLOCK (blocker_id, blocked_id) VALUES (?, ?)',
+      [blocker_id, blocked_id]
+    );
+
+    const newBlock = await queryOne('SELECT * FROM BLOCK WHERE block_id = ?', [result.insertId]);
 
     res.status(201).json({
       success: true,
@@ -73,9 +76,10 @@ router.delete('/:blocked_id', authenticateToken, async (req, res) => {
     const blocker_id = req.user.user_id;
     const { blocked_id } = req.params;
 
-    const block = await Block.findOne({
-      where: { blocker_id, blocked_id }
-    });
+    const block = await queryOne(
+      'SELECT * FROM BLOCK WHERE blocker_id = ? AND blocked_id = ?',
+      [blocker_id, blocked_id]
+    );
 
     if (!block) {
       return res.status(404).json({
@@ -84,7 +88,7 @@ router.delete('/:blocked_id', authenticateToken, async (req, res) => {
       });
     }
 
-    await block.destroy();
+    await query('DELETE FROM BLOCK WHERE block_id = ?', [block.block_id]);
 
     res.json({
       success: true,
@@ -105,15 +109,15 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const blocker_id = req.user.user_id;
 
-    const blocks = await Block.findAll({
-      where: { blocker_id },
-      include: [{
-        model: User,
-        as: 'blocked',
-        attributes: ['user_id', 'username', 'email', 'profile_pic']
-      }],
-      order: [['blocked_at', 'DESC']]
-    });
+    const blocks = await query(
+      `SELECT b.*, 
+              u.user_id, u.username, u.email, u.profile_pic
+       FROM BLOCK b
+       LEFT JOIN USER u ON b.blocked_id = u.user_id
+       WHERE b.blocker_id = ?
+       ORDER BY b.blocked_at DESC`,
+      [blocker_id]
+    );
 
     res.json({
       success: true,
@@ -135,9 +139,10 @@ router.get('/check/:user_id', authenticateToken, async (req, res) => {
     const blocker_id = req.user.user_id;
     const { user_id } = req.params;
 
-    const block = await Block.findOne({
-      where: { blocker_id, blocked_id: user_id }
-    });
+    const block = await queryOne(
+      'SELECT * FROM BLOCK WHERE blocker_id = ? AND blocked_id = ?',
+      [blocker_id, user_id]
+    );
 
     res.json({
       success: true,

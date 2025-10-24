@@ -1,5 +1,5 @@
 ﻿import express from 'express';
-import { Chat, User } from '../models/index.js';
+import { query, queryOne } from '../config/db.js';
 import { authenticateToken } from '../middleware/index.js';
 
 const router = express.Router();
@@ -25,7 +25,7 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     // Check if user2 exists
-    const user2 = await User.findByPk(user2_id);
+    const user2 = await queryOne('SELECT * FROM USER WHERE user_id = ?', [user2_id]);
     if (!user2) {
       return res.status(404).json({
         success: false,
@@ -37,12 +37,10 @@ router.post('/', authenticateToken, async (req, res) => {
     const [smallerId, largerId] = user1_id < user2_id ? [user1_id, user2_id] : [user2_id, user1_id];
 
     // Check if chat already exists
-    const existingChat = await Chat.findOne({
-      where: {
-        user1_id: smallerId,
-        user2_id: largerId
-      }
-    });
+    const existingChat = await queryOne(
+      'SELECT * FROM CHAT WHERE user1_id = ? AND user2_id = ?',
+      [smallerId, largerId]
+    );
 
     if (existingChat) {
       // Still emit event in case the other user doesn't have it in their list yet
@@ -66,10 +64,12 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     // Create new chat
-    const newChat = await Chat.create({
-      user1_id: smallerId,
-      user2_id: largerId
-    });
+    const result = await query(
+      'INSERT INTO CHAT (user1_id, user2_id) VALUES (?, ?)',
+      [smallerId, largerId]
+    );
+
+    const newChat = await queryOne('SELECT * FROM CHAT WHERE chat_id = ?', [result.insertId]);
 
     // Get socket.io instance and emit new chat event to both users
     const io = req.app.get('io');
@@ -104,32 +104,33 @@ router.post('/', authenticateToken, async (req, res) => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.user_id;
-    const { Op } = await import('sequelize');
 
-    const chats = await Chat.findAll({
-      where: {
-        [Op.or]: [
-          { user1_id: userId },
-          { user2_id: userId }
-        ]
-      },
-      order: [['last_message_at', 'DESC']]
-    });
+    const chats = await query(
+      `SELECT c.*, 
+              u.user_id, u.username, u.profile_pic
+       FROM CHAT c
+       LEFT JOIN USER u ON (
+         CASE 
+           WHEN c.user1_id = ? THEN c.user2_id
+           ELSE c.user1_id
+         END = u.user_id
+       )
+       WHERE c.user1_id = ? OR c.user2_id = ?
+       ORDER BY c.last_message_at DESC`,
+      [userId, userId, userId]
+    );
 
-    // Fetch user details for each chat
-    const chatsWithUsers = await Promise.all(chats.map(async (chat) => {
-      const otherUserId = chat.user1_id === userId ? chat.user2_id : chat.user1_id;
-      const otherUser = await User.findByPk(otherUserId, {
-        attributes: ['user_id', 'username', 'profile_pic']
-      });
-
-      return {
-        chat_id: chat.chat_id,
-        user1_id: chat.user1_id,
-        user2_id: chat.user2_id,
-        last_message_at: chat.last_message_at,
-        other_user: otherUser
-      };
+    // Format response to match expected structure
+    const chatsWithUsers = chats.map(chat => ({
+      chat_id: chat.chat_id,
+      user1_id: chat.user1_id,
+      user2_id: chat.user2_id,
+      last_message_at: chat.last_message_at,
+      other_user: {
+        user_id: chat.user_id,
+        username: chat.username,
+        profile_pic: chat.profile_pic
+      }
     }));
 
     res.json({
@@ -153,7 +154,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const userId = req.user.user_id;
 
-    const chat = await Chat.findByPk(id);
+    const chat = await queryOne('SELECT * FROM CHAT WHERE chat_id = ?', [id]);
 
     if (!chat) {
       return res.status(404).json({
@@ -170,7 +171,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       });
     }
 
-    await chat.destroy();
+    await query('DELETE FROM CHAT WHERE chat_id = ?', [id]);
 
     res.json({
       success: true,

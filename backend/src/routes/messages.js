@@ -1,6 +1,5 @@
 import express from 'express';
-import { Op } from 'sequelize';
-import { Message, User, Chat } from '../models/index.js';
+import { query, queryOne } from '../config/db.js';
 import { authenticateToken } from '../middleware/index.js';
 import { uploadMedia } from '../middleware/upload.js';
 import path from 'path';
@@ -23,15 +22,10 @@ router.post('/', authenticateToken, uploadMedia, async (req, res) => {
     }
 
     // Verify user is part of this chat
-    const chat = await Chat.findOne({
-      where: {
-        chat_id,
-        [Op.or]: [
-          { user1_id: sender_id },
-          { user2_id: sender_id }
-        ]
-      }
-    });
+    const chat = await queryOne(
+      'SELECT * FROM CHAT WHERE chat_id = ? AND (user1_id = ? OR user2_id = ?)',
+      [chat_id, sender_id, sender_id]
+    );
 
     if (!chat) {
       return res.status(403).json({
@@ -59,28 +53,26 @@ router.post('/', authenticateToken, uploadMedia, async (req, res) => {
       finalMessageType = message_type;
     }
 
-    const newMessage = await Message.create({
-      chat_id,
-      sender_id,
-      message_text: finalMessageText,
-      message_type: finalMessageType
-    });
+    const result = await query(
+      'INSERT INTO MESSAGE (chat_id, sender_id, message_text, message_type) VALUES (?, ?, ?, ?)',
+      [chat_id, sender_id, finalMessageText, finalMessageType]
+    );
 
     // Update chat's last_message_at
-    await Chat.update(
-      { last_message_at: new Date() },
-      { where: { chat_id } }
+    await query(
+      'UPDATE CHAT SET last_message_at = NOW() WHERE chat_id = ?',
+      [chat_id]
     );
 
     // Fetch the message with sender info
-    const messageWithSender = await Message.findOne({
-      where: { message_id: newMessage.message_id },
-      include: [{
-        model: User,
-        as: 'sender',
-        attributes: ['user_id', 'username', 'profile_pic']
-      }]
-    });
+    const messageWithSender = await queryOne(
+      `SELECT m.*, 
+              u.user_id, u.username, u.profile_pic
+       FROM MESSAGE m
+       LEFT JOIN USER u ON m.sender_id = u.user_id
+       WHERE m.message_id = ?`,
+      [result.insertId]
+    );
 
     // Emit socket event for real-time messaging
     const io = req.app.get('io');
@@ -110,15 +102,10 @@ router.get('/:chatId', authenticateToken, async (req, res) => {
     const userId = req.user.user_id;
 
     // Verify user is part of this chat
-    const chat = await Chat.findOne({
-      where: {
-        chat_id: chatId,
-        [Op.or]: [
-          { user1_id: userId },
-          { user2_id: userId }
-        ]
-      }
-    });
+    const chat = await queryOne(
+      'SELECT * FROM CHAT WHERE chat_id = ? AND (user1_id = ? OR user2_id = ?)',
+      [chatId, userId, userId]
+    );
 
     if (!chat) {
       return res.status(403).json({
@@ -127,30 +114,24 @@ router.get('/:chatId', authenticateToken, async (req, res) => {
       });
     }
 
-    const messages = await Message.findAll({
-      where: { chat_id: chatId },
-      include: [{
-        model: User,
-        as: 'sender',
-        attributes: ['user_id', 'username', 'profile_pic']
-      }],
-      order: [['sent_at', 'ASC']]
-    });
+    const messages = await query(
+      `SELECT m.*, 
+              u.user_id, u.username, u.profile_pic
+       FROM MESSAGE m
+       LEFT JOIN USER u ON m.sender_id = u.user_id
+       WHERE m.chat_id = ?
+       ORDER BY m.sent_at ASC`,
+      [chatId]
+    );
 
     // Mark ALL unread messages from other user as read (not just the latest)
-    const updateResult = await Message.update(
-      { is_read: true },
-      {
-        where: {
-          chat_id: chatId,
-          sender_id: { [Op.ne]: userId }, // Not sent by current user
-          is_read: false
-        }
-      }
+    const updateResult = await query(
+      'UPDATE MESSAGE SET is_read = TRUE WHERE chat_id = ? AND sender_id != ? AND is_read = FALSE',
+      [chatId, userId]
     );
 
     // Emit socket event if any messages were marked as read
-    if (updateResult[0] > 0) {
+    if (updateResult.affectedRows > 0) {
       const io = req.app.get('io');
       if (io) {
         io.to(`chat_${chatId}`).emit('messages_read', { chatId, userId });
@@ -158,15 +139,15 @@ router.get('/:chatId', authenticateToken, async (req, res) => {
     }
 
     // Refetch messages to get updated is_read status
-    const updatedMessages = await Message.findAll({
-      where: { chat_id: chatId },
-      include: [{
-        model: User,
-        as: 'sender',
-        attributes: ['user_id', 'username', 'profile_pic']
-      }],
-      order: [['sent_at', 'ASC']]
-    });
+    const updatedMessages = await query(
+      `SELECT m.*, 
+              u.user_id, u.username, u.profile_pic
+       FROM MESSAGE m
+       LEFT JOIN USER u ON m.sender_id = u.user_id
+       WHERE m.chat_id = ?
+       ORDER BY m.sent_at ASC`,
+      [chatId]
+    );
 
     res.json({
       success: true,
@@ -190,15 +171,10 @@ router.put('/:chatId/mark-read', authenticateToken, async (req, res) => {
     const userId = req.user.user_id;
 
     // Verify user is part of this chat
-    const chat = await Chat.findOne({
-      where: {
-        chat_id: chatId,
-        [Op.or]: [
-          { user1_id: userId },
-          { user2_id: userId }
-        ]
-      }
-    });
+    const chat = await queryOne(
+      'SELECT * FROM CHAT WHERE chat_id = ? AND (user1_id = ? OR user2_id = ?)',
+      [chatId, userId, userId]
+    );
 
     if (!chat) {
       return res.status(403).json({
@@ -208,15 +184,9 @@ router.put('/:chatId/mark-read', authenticateToken, async (req, res) => {
     }
 
     // Mark all messages from other user as read
-    await Message.update(
-      { is_read: true },
-      {
-        where: {
-          chat_id: chatId,
-          sender_id: { [Op.ne]: userId },
-          is_read: false
-        }
-      }
+    await query(
+      'UPDATE MESSAGE SET is_read = TRUE WHERE chat_id = ? AND sender_id != ? AND is_read = FALSE',
+      [chatId, userId]
     );
 
     res.json({
@@ -248,9 +218,7 @@ router.put('/:messageId', authenticateToken, async (req, res) => {
     }
 
     // Find the message
-    const message = await Message.findOne({
-      where: { message_id: messageId }
-    });
+    const message = await queryOne('SELECT * FROM MESSAGE WHERE message_id = ?', [messageId]);
 
     if (!message) {
       return res.status(404).json({
@@ -268,17 +236,17 @@ router.put('/:messageId', authenticateToken, async (req, res) => {
     }
 
     // Update the message
-    await message.update({ message_text: message_text.trim() });
+    await query('UPDATE MESSAGE SET message_text = ? WHERE message_id = ?', [message_text.trim(), messageId]);
 
     // Fetch updated message with sender info
-    const updatedMessage = await Message.findOne({
-      where: { message_id: messageId },
-      include: [{
-        model: User,
-        as: 'sender',
-        attributes: ['user_id', 'username', 'profile_pic']
-      }]
-    });
+    const updatedMessage = await queryOne(
+      `SELECT m.*, 
+              u.user_id, u.username, u.profile_pic
+       FROM MESSAGE m
+       LEFT JOIN USER u ON m.sender_id = u.user_id
+       WHERE m.message_id = ?`,
+      [messageId]
+    );
 
     // Emit socket event for real-time update
     const io = req.app.get('io');
@@ -308,9 +276,7 @@ router.delete('/:messageId', authenticateToken, async (req, res) => {
     const userId = req.user.user_id;
 
     // Find the message
-    const message = await Message.findOne({
-      where: { message_id: messageId }
-    });
+    const message = await queryOne('SELECT * FROM MESSAGE WHERE message_id = ?', [messageId]);
 
     if (!message) {
       return res.status(404).json({
@@ -328,7 +294,7 @@ router.delete('/:messageId', authenticateToken, async (req, res) => {
     }
 
     // Delete the message
-    await message.destroy();
+    await query('DELETE FROM MESSAGE WHERE message_id = ?', [messageId]);
 
     res.json({
       success: true,

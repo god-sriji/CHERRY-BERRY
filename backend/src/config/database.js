@@ -1,5 +1,6 @@
 ﻿import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
+import { initializeSchema } from '../migrations/001-init-schema.js';
 
 dotenv.config();
 
@@ -27,7 +28,7 @@ export const testConnection = async () => {
 
 export const syncDatabase = async () => {
   try {
-    await sequelize.sync({ alter: false });
+    await initializeSchema();
     console.log(' Database synced');
   } catch (error) {
     console.error(' Database sync failed:', error);
