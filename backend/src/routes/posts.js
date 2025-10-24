@@ -83,15 +83,30 @@ router.get('/', async (req, res) => {
   try {
     const posts = await query(
       `SELECT p.*, 
-              u.user_id, u.username, u.profile_pic
+              u.user_id as author_user_id, u.username as author_username, u.profile_pic as author_profile_pic
        FROM POST p
        LEFT JOIN USER u ON p.user_id = u.user_id
        ORDER BY p.created_at DESC`
     );
 
+    // Format posts to include user object
+    const formattedPosts = posts.map(post => ({
+      post_id: post.post_id,
+      user_id: post.user_id,
+      media_url: post.media_url,
+      media_type: post.media_type,
+      caption: post.caption,
+      created_at: post.created_at,
+      user: {
+        user_id: post.author_user_id,
+        username: post.author_username,
+        profile_pic: post.author_profile_pic
+      }
+    }));
+
     res.json({
       success: true,
-      data: posts,
+      data: formattedPosts,
       message: 'Posts retrieved successfully'
     });
   } catch (error) {
@@ -111,7 +126,7 @@ router.get('/user/:userId', async (req, res) => {
 
     const posts = await query(
       `SELECT p.*, 
-              u.user_id, u.username, u.profile_pic
+              u.user_id as author_user_id, u.username as author_username, u.profile_pic as author_profile_pic
        FROM POST p
        LEFT JOIN USER u ON p.user_id = u.user_id
        WHERE p.user_id = ?
@@ -119,9 +134,24 @@ router.get('/user/:userId', async (req, res) => {
       [userId]
     );
 
+    // Format posts to include user object
+    const formattedPosts = posts.map(post => ({
+      post_id: post.post_id,
+      user_id: post.user_id,
+      media_url: post.media_url,
+      media_type: post.media_type,
+      caption: post.caption,
+      created_at: post.created_at,
+      user: {
+        user_id: post.author_user_id,
+        username: post.author_username,
+        profile_pic: post.author_profile_pic
+      }
+    }));
+
     res.json({
       success: true,
-      data: posts,
+      data: formattedPosts,
       message: 'User posts retrieved successfully'
     });
   } catch (error) {
@@ -141,7 +171,7 @@ router.get('/:id', async (req, res) => {
 
     const post = await queryOne(
       `SELECT p.*, 
-              u.user_id, u.username, u.profile_pic
+              u.user_id as author_user_id, u.username as author_username, u.profile_pic as author_profile_pic
        FROM POST p
        LEFT JOIN USER u ON p.user_id = u.user_id
        WHERE p.post_id = ?`,
@@ -155,9 +185,24 @@ router.get('/:id', async (req, res) => {
       });
     }
 
+    // Format post to include user object
+    const formattedPost = {
+      post_id: post.post_id,
+      user_id: post.user_id,
+      media_url: post.media_url,
+      media_type: post.media_type,
+      caption: post.caption,
+      created_at: post.created_at,
+      user: {
+        user_id: post.author_user_id,
+        username: post.author_username,
+        profile_pic: post.author_profile_pic
+      }
+    };
+
     res.json({
       success: true,
-      data: post,
+      data: formattedPost,
       message: 'Post retrieved successfully'
     });
   } catch (error) {
