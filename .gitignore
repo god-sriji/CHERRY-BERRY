@@ -30,8 +30,6 @@ Thumbs.db
 # Uploads (but keep folder structure with .gitkeep)
 backend/uploads/posts/*
 !backend/uploads/posts/.gitkeep
-frontend/public/defaultpfp/*
-!frontend/public/defaultpfp/.gitkeep
 
 # Database
 *.sql
