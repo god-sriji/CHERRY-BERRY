@@ -23,6 +23,7 @@ const Chat = () => {
   const [unreadMessages, setUnreadMessages] = useState({}); // Track unread counts per chat
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const messageInputRef = useRef(null);
 
   // Mark messages as read when viewing a chat
   const markMessagesAsRead = async (chatId) => {
@@ -185,11 +186,31 @@ const Chat = () => {
     }
   }, [messages]);
 
+  // Ensure input is visible when chat is opened on mobile
+  useEffect(() => {
+    if (selectedChat) {
+      // Reset scroll position when opening a chat
+      setTimeout(() => {
+        scrollToBottom();
+      }, 200);
+    }
+  }, [selectedChat]);
+
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ 
-      behavior: 'smooth',
-      block: 'end'
-    });
+    // Try multiple methods to ensure scroll works
+    const messageContent = document.querySelector('.message-content');
+    if (messageContent) {
+      // Scroll with some gap at the bottom (not all the way)
+      messageContent.scrollTop = messageContent.scrollHeight - 50;
+    }
+    
+    // Also try scrollIntoView on the ref
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'end'
+      });
+    }
   };
 
   const fetchChats = async () => {
@@ -281,6 +302,11 @@ const Chat = () => {
           });
         }, 100);
         
+        // Scroll to bottom after message is added - with longer delay
+        setTimeout(() => {
+          scrollToBottom();
+        }, 300);
+        
         await fetchChats(); // Refresh chat list to update last_message_at
       }
     } catch (error) {
@@ -329,6 +355,17 @@ const Chat = () => {
         ));
         setEditingMessageId(null);
         setEditingMessageText('');
+        
+        // Scroll to the edited message
+        setTimeout(() => {
+          const editedMessageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+          if (editedMessageElement) {
+            editedMessageElement.scrollIntoView({ 
+              behavior: 'smooth',
+              block: 'center'
+            });
+          }
+        }, 100);
       }
     } catch (error) {
       console.error('Error editing message:', error);
@@ -432,7 +469,10 @@ const Chat = () => {
               <div className="message-header">
                 <button 
                   className="mobile-back-btn"
-                  onClick={() => setSelectedChat(null)}
+                  onClick={() => {
+                    setSelectedChat(null);
+                    localStorage.removeItem('selectedChatId');
+                  }}
                 >
                   ← Back
                 </button>
@@ -460,7 +500,8 @@ const Chat = () => {
                   <div className="messages-list">
                     {messages.map((msg) => (
                       <div 
-                        key={msg.message_id} 
+                        key={msg.message_id}
+                        data-message-id={msg.message_id}
                         className={`message ${msg.sender_id === user.user_id ? 'sent' : 'received'}`}
                       >
                         {editingMessageId === msg.message_id ? (
@@ -616,6 +657,7 @@ const Chat = () => {
                   
                   <input
                     type="text"
+                    ref={messageInputRef}
                     placeholder="Type a message..."
                     className="message-input"
                     value={newMessage}
@@ -635,6 +677,17 @@ const Chat = () => {
           )}
         </div>
       </div>
+
+      {/* Floating Action Button for Mobile - New Chat */}
+      {!selectedChat && (
+        <button 
+          className="fab-new-chat"
+          onClick={() => setShowNewChatModal(true)}
+          title="New Chat"
+        >
+          +
+        </button>
+      )}
 
       {/* New Chat Modal */}
       {showNewChatModal && (
