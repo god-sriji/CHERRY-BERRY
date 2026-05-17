@@ -15,7 +15,7 @@ WORKDIR /app/backend
 RUN addgroup --system appgroup \
   && adduser --system --ingroup appgroup appuser \
   && mkdir -p /app/frontend /app/backend/uploads/media /app/backend/uploads/posts \
-  && chown -R appuser:appgroup /app/frontend /app/backend/uploads
+  && chown -R appuser:appgroup /app/frontend /app/backend /app/backend/uploads
 
 COPY backend/package*.json ./
 RUN npm ci --omit=dev
