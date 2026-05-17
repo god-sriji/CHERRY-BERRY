@@ -18,7 +18,12 @@ RUN npm ci --omit=dev
 COPY backend/ ./
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
-RUN mkdir -p /app/backend/uploads/media /app/backend/uploads/posts
+RUN addgroup --system appgroup \
+  && adduser --system --ingroup appgroup appuser \
+  && mkdir -p /app/backend/uploads/media /app/backend/uploads/posts \
+  && chown -R appuser:appgroup /app/backend /app/frontend
+
+USER appuser
 
 EXPOSE 3002
 
