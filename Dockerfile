@@ -12,16 +12,16 @@ FROM node:20-bookworm-slim AS runtime
 
 WORKDIR /app/backend
 
+RUN addgroup --system appgroup \
+  && adduser --system --ingroup appgroup appuser \
+  && mkdir -p /app/frontend /app/backend/uploads/media /app/backend/uploads/posts \
+  && chown -R appuser:appgroup /app/frontend /app/backend/uploads
+
 COPY backend/package*.json ./
 RUN npm ci --omit=dev
 
-COPY backend/ ./
-COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
-
-RUN addgroup --system appgroup \
-  && adduser --system --ingroup appgroup appuser \
-  && mkdir -p /app/backend/uploads/media /app/backend/uploads/posts \
-  && chown -R appuser:appgroup /app/backend /app/frontend
+COPY --chown=appuser:appgroup backend/ ./
+COPY --from=frontend-builder --chown=appuser:appgroup /app/frontend/dist /app/frontend/dist
 
 USER appuser
 
