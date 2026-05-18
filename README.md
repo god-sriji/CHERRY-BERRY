@@ -1,53 +1,121 @@
 # 🍒 Cherry Berry
 
-A modern social media platform with real-time chat functionality built with React and Node.js.
+<p align="center">
+  A modern full-stack social media platform with real-time messaging, media sharing, and responsive UI.
+</p>
 
-## Features
+<p align="center">
+  <img src="https://img.shields.io/badge/React-19-blue?style=for-the-badge&logo=react" />
+  <img src="https://img.shields.io/badge/Node.js-Backend-green?style=for-the-badge&logo=node.js" />
+  <img src="https://img.shields.io/badge/MySQL-Database-orange?style=for-the-badge&logo=mysql" />
+  <img src="https://img.shields.io/badge/Socket.IO-Realtime-black?style=for-the-badge&logo=socket.io" />
+</p>
 
-- 🔐 User Authentication (Email/Password & Google OAuth)
-- 📝 Post Creation (Text, Images, Videos)
-- 💬 Real-time Chat with WebSocket
+---
+
+# 📸 Preview
+
+## Feed & Social Experience
+
+![Feed](https://github.com/user-attachments/assets/6fcc2a53-f9ff-43f1-9a28-2cff0f7b613f)
+
+---
+
+## Real-Time Chat
+
+![Chat](https://github.com/user-attachments/assets/6218b473-5b1f-482e-8f76-88765089b834)
+
+---
+
+## Profile & User System
+
+![Profile](https://github.com/user-attachments/assets/0b6f59a1-0faa-4b7e-bd6a-934cc41e1d6d)
+
+---
+
+## Responsive Mobile Experience
+
+![Mobile](https://github.com/user-attachments/assets/be006cf1-75a4-4bb1-aaf1-c8c97d881514)
+
+---
+
+# ✨ Features
+
+- 🔐 Authentication System
+  - Email/Password login
+  - Google OAuth
+  - JWT authentication
+
+- 📝 Social Posting
+  - Text posts
+  - Image uploads
+  - Video uploads
+
+- 💬 Real-Time Messaging
+  - Socket.IO powered chat
+  - Read receipts
+  - Message editing/deleting
+  - Live updates
+
 - 👤 User Profiles
-- 📱 Responsive Design
-- ✅ Message Read Receipts (Sent/Seen indicators)
+  - Profile pictures
+  - Bio system
+  - User onboarding
 
-## Tech Stack
+- 📱 Fully Responsive
+  - Desktop UI
+  - Mobile optimized
+  - Smooth layouts
 
-### Frontend
+---
+
+# 🛠 Tech Stack
+
+## Frontend
 - React 19
 - Vite
 - Axios
 - Socket.IO Client
 - Google OAuth
 
-### Backend
+## Backend
 - Node.js
 - Express
 - MySQL
 - Sequelize ORM
 - Socket.IO
 - JWT Authentication
-- Multer (File uploads)
+- Multer
 
-## Setup Instructions
+---
 
-### Prerequisites
-- Node.js (v16+)
-- MySQL Database
+# ⚙️ Setup Instructions
 
-### Backend Setup
+## Prerequisites
 
-1. Navigate to backend directory:
+- Node.js v16+
+- MySQL
+
+---
+
+# Backend Setup
+
+### 1. Navigate to backend
+
 ```bash
 cd backend
 ```
 
-2. Install dependencies:
+### 2. Install dependencies
+
 ```bash
 npm install
 ```
 
-3. Create `.env` file:
+### 3. Configure environment variables
+
+Create a `.env` file:
+
 ```env
 PORT=3002
 DB_HOST=localhost
@@ -59,110 +127,126 @@ FRONTEND_URL=http://localhost:5173
 GOOGLE_CLIENT_ID=your_google_client_id
 ```
 
-4. Run database migrations:
+### 4. Run migrations
+
 ```bash
 node add-read-status.js
 node update-message-schema.js
 ```
 
-5. Start the server:
+### 5. Start backend server
+
 ```bash
 node server.js
 ```
 
-### Frontend Setup
+---
 
-1. Navigate to frontend directory:
+# Frontend Setup
+
+### 1. Navigate to frontend
+
 ```bash
 cd frontend
 ```
 
-2. Install dependencies:
+### 2. Install dependencies
+
 ```bash
 npm install
 ```
 
-3. Create `.env` file:
+### 3. Configure environment variables
+
 ```env
 VITE_API_URL=http://localhost:3002
 VITE_GOOGLE_CLIENT_ID=your_google_client_id
 ```
 
-4. Start the development server:
+### 4. Start development server
+
 ```bash
 npm run dev
 ```
 
-5. Access the app at `http://localhost:5173`
+---
 
-### Mobile Access
+# 📱 Mobile Access
 
-To access from mobile device on the same network:
+Run:
+
 ```bash
 npm run dev
-# Access via http://YOUR_IP:5173
 ```
 
-## Database Schema
+Then access:
 
-### Main Tables
-- USER - User accounts and profiles
-- POST - User posts with media
-- CHAT - Chat conversations
-- MESSAGE - Chat messages with read status
-
-## Project Structure
-
+```bash
+http://YOUR_IP:5173
 ```
+
+from devices on the same network.
+
+---
+
+# 🗄 Database Schema
+
+## Main Tables
+
+| Table | Description |
+|---|---|
+| USER | User accounts & profiles |
+| POST | Posts and media |
+| CHAT | Chat conversations |
+| MESSAGE | Messages with read status |
+
+---
+
+# 📂 Project Structure
+
+```bash
 cherry-berry/
 ├── backend/
 │   ├── src/
-│   │   ├── config/        # Database configuration
-│   │   ├── models/        # Sequelize models
-│   │   ├── routes/        # API routes
-│   │   ├── middleware/    # Auth & validation
-│   │   └── utils/         # JWT utilities
-│   ├── uploads/           # User uploaded files
-│   └── server.js          # Entry point
+│   │   ├── config/
+│   │   ├── models/
+│   │   ├── routes/
+│   │   ├── middleware/
+│   │   └── utils/
+│   ├── uploads/
+│   └── server.js
 │
 └── frontend/
     ├── src/
-    │   ├── components/    # React components
-    │   ├── context/       # Auth context
-    │   ├── services/      # API & Socket services
-    │   └── utils/         # Helper functions
-    └── public/            # Static assets
+    │   ├── components/
+    │   ├── context/
+    │   ├── services/
+    │   └── utils/
+    └── public/
 ```
 
-## Features in Detail
+---
 
-### Authentication
-- Email/Password registration and login
-- Google OAuth integration
-- JWT-based session management
-- Protected routes
+# 🚀 Future Improvements
 
-### Posts
-- Create posts with text, images, or videos
-- Support for multiple media types
-- User profile integration
+- Notifications system
+- Stories feature
+- Video calling
+- Dark mode
+- Post likes/comments
+- PWA support
 
-### Real-time Chat
-- WebSocket-powered instant messaging
-- Message read receipts (✓ sent, ✓✓ seen)
-- Edit and delete messages
-- Chat list with last message preview
-- Auto-scroll to latest messages
+---
 
-### User Profiles
-- Custom profile pictures
-- Bio and username
-- Onboarding flow for new users
-
-## License
+# 📄 License
 
 MIT
 
-## Author
+---
 
-Your Name
+# 👨‍💻 Authors
+
+Made by:
+
+- [@god-sriji](https://github.com/god-sriji)
+- [@LamiyaRasheed](https://github.com/LamiyaRasheed)
