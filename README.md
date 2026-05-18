@@ -238,9 +238,9 @@ cherry-berry/
 
 ---
 
-# 📄 License
+## 📄 License
 
-MIT
+This project is licensed under the MIT License.MIT
 
 ---
 
