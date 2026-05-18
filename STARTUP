@@ -1,7 +1,0 @@
-npx cloudflared tunnel --url http://localhost:3002
-add the url to frontend/.env
-
-
-
-//in new terminal
-npm run dev // AFTER cd backend
