@@ -248,5 +248,5 @@ This project is licensed under the MIT License.MIT
 
 Made by:
 
-- [@god-sriji](https://github.com/god-sriji)
+- [@srijii](https://github.com/srijii)
 - [@LamiyaRasheed](https://github.com/LamiyaRasheed)
